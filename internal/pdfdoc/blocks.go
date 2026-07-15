@@ -441,9 +441,13 @@ type Image struct {
 
 func (im *Image) dims(w float64) (iw, ih float64) {
 	b := im.Img.Bounds()
-	// 150 dpi nominal, scaled down to fit the measure.
-	iw = float64(b.Dx()) * 25.4 / 150
-	ih = float64(b.Dy()) * 25.4 / 150
+	dpi := im.T.ImageDPI
+	if dpi <= 0 {
+		dpi = 150
+	}
+	// Nominal DPI, scaled down to fit the measure.
+	iw = float64(b.Dx()) * 25.4 / dpi
+	ih = float64(b.Dy()) * 25.4 / dpi
 	if iw > w {
 		ih *= w / iw
 		iw = w

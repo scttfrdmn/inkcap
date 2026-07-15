@@ -96,14 +96,15 @@ type Code struct {
 }
 
 type Document struct {
-	TOC           bool   `toml:"toc"`
-	TOCDepth      int    `toml:"toc_depth"`
-	TOCTitle      string `toml:"toc_title"`
-	Footnotes     string `toml:"footnotes"` // page | end | none
-	PageNumbers   bool   `toml:"page_numbers"`
-	PageTotal     bool   `toml:"page_total"` // render "3 / 12"
-	RunningHeader bool   `toml:"running_header"`
-	HTML          string `toml:"html"` // strip | drop
+	TOC           bool    `toml:"toc"`
+	TOCDepth      int     `toml:"toc_depth"`
+	TOCTitle      string  `toml:"toc_title"`
+	Footnotes     string  `toml:"footnotes"` // page | end | none
+	PageNumbers   bool    `toml:"page_numbers"`
+	PageTotal     bool    `toml:"page_total"` // render "3 / 12"
+	RunningHeader bool    `toml:"running_header"`
+	HTML          string  `toml:"html"`      // strip | drop
+	ImageDPI      float64 `toml:"image_dpi"` // nominal resolution for figures; higher = smaller on the page
 }
 
 // Default is the built-in configuration. Everything else is a delta on this.
@@ -136,7 +137,7 @@ func Default() Config {
 		Document: Document{
 			TOCDepth: 3, TOCTitle: "Contents",
 			Footnotes: "page", PageNumbers: true, RunningHeader: true,
-			HTML: "strip",
+			HTML: "strip", ImageDPI: 150,
 		},
 	}
 }
@@ -295,6 +296,7 @@ page_numbers   = true
 page_total     = false    # render "3 / 12" instead of "3"
 running_header = true
 html           = "strip"  # strip: keep the text, drop the tags. drop: discard.
+image_dpi      = 150      # nominal image resolution; raise to shrink figures
 
 # Fonts default to the embedded IBM Plex Serif / Mono. Point these at .ttf or
 # .otf files to override; any face you leave blank falls back to the embedded one.

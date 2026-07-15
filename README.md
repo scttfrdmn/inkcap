@@ -128,6 +128,7 @@ anything left blank.
 | `page_total` | `false` | render `3 / 12` instead of `3` |
 | `running_header` | `true` | document title in the header from page 2 |
 | `html` | `"strip"` | `strip` (keep text, drop tags) \| `drop` (discard) |
+| `image_dpi` | `150` | nominal resolution for figures; raise to shrink them on the page |
 
 ### `[fonts.text]` and `[fonts.mono]`
 

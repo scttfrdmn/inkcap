@@ -55,6 +55,7 @@ type Theme struct {
 	ChromaStyle string
 	LineNumbers bool
 	TabWidth    int
+	ImageDPI    float64
 
 	TOC           bool
 	TOCDepth      int
@@ -180,6 +181,7 @@ func New(c config.Config) (*Theme, error) {
 		ChromaStyle: c.Code.Style,
 		LineNumbers: c.Code.LineNumbers,
 		TabWidth:    c.Code.TabWidth,
+		ImageDPI:    c.Document.ImageDPI,
 
 		TOC:           c.Document.TOC,
 		TOCDepth:      c.Document.TOCDepth,
@@ -198,6 +200,9 @@ func New(c config.Config) (*Theme, error) {
 	}
 	if t.HTML == "" {
 		t.HTML = "strip"
+	}
+	if t.ImageDPI <= 0 {
+		t.ImageDPI = 150
 	}
 	return t, nil
 }
