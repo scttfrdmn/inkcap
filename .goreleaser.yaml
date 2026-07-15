@@ -39,6 +39,66 @@ archives:
       - README.md
       - LICENSE
 
+nfpms:
+  - id: inkcap
+    package_name: inkcap
+    vendor: Scott Friedman
+    homepage: https://github.com/scttfrdmn/inkcap
+    maintainer: Scott Friedman <3011922+scttfrdmn@users.noreply.github.com>
+    description: Markdown to typeset PDF in one static binary.
+    license: Apache-2.0
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/bin
+
+dockers_v2:
+  - id: inkcap
+    dockerfile: Dockerfile
+    images:
+      - "ghcr.io/scttfrdmn/inkcap"
+    platforms:
+      - "linux/amd64"
+      - "linux/arm64"
+    tags:
+      - "{{ .Version }}"
+      - "{{ if not .Prerelease }}latest{{ end }}"
+    labels:
+      org.opencontainers.image.title: "{{ .ProjectName }}"
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.source: "https://github.com/scttfrdmn/inkcap"
+      org.opencontainers.image.licenses: "Apache-2.0"
+
+homebrew_casks:
+  - name: inkcap
+    repository:
+      owner: scttfrdmn
+      name: homebrew-tap
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    homepage: https://github.com/scttfrdmn/inkcap
+    description: Markdown to typeset PDF in one static binary.
+    license: Apache-2.0
+    directory: Casks
+    # The downloaded binary is unsigned; clear the quarantine flag so macOS
+    # doesn't block it on first run.
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/inkcap"]
+          end
+
+scoops:
+  - name: inkcap
+    repository:
+      owner: scttfrdmn
+      name: scoop-bucket
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    homepage: https://github.com/scttfrdmn/inkcap
+    description: Markdown to typeset PDF in one static binary.
+    license: Apache-2.0
+
 checksum:
   name_template: "checksums.txt"
 

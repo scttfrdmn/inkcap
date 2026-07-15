@@ -15,17 +15,37 @@ row splits across the page break with its header repeated.](docs/img/example.png
 full PDF is [`example.pdf`](example.pdf).*
 
 ```
-go install github.com/scttfrdmn/inkcap/cmd/inkcap@latest
-# or grab a prebuilt binary from the Releases page:
-#   https://github.com/scttfrdmn/inkcap/releases
-# or, from a clone:
-go build -o inkcap ./cmd/inkcap
-
 inkcap notes.md                    # -> notes.pdf
 inkcap init                        # write ~/.inkcap/config.toml
 inkcap -toc -style nord doc.md
 inkcap version                     # print version, Go version, platform
 ```
+
+## Install
+
+```sh
+# Homebrew (macOS / Linux)
+brew install scttfrdmn/tap/inkcap
+
+# Scoop (Windows)
+scoop bucket add scttfrdmn https://github.com/scttfrdmn/scoop-bucket
+scoop install inkcap
+
+# Install script (macOS / Linux) — detects OS/arch, verifies the checksum
+curl -fsSL https://raw.githubusercontent.com/scttfrdmn/inkcap/main/install.sh | sh
+
+# Go
+go install github.com/scttfrdmn/inkcap/cmd/inkcap@latest
+
+# Docker
+docker run --rm -v "$PWD":/work ghcr.io/scttfrdmn/inkcap notes.md
+
+# From source
+go build -o inkcap ./cmd/inkcap
+```
+
+Prebuilt binaries, `.deb`/`.rpm` packages, and checksums are on the
+[Releases page](https://github.com/scttfrdmn/inkcap/releases).
 
 ## Configuration
 
