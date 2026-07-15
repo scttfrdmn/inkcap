@@ -20,9 +20,15 @@ import (
 )
 
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "init" {
-		initCmd(os.Args[2:])
-		return
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "init":
+			initCmd(os.Args[2:])
+			return
+		case "version", "-version", "--version":
+			printVersion()
+			return
+		}
 	}
 
 	var (
@@ -38,7 +44,7 @@ func main() {
 		quiet   = flag.Bool("q", false, "suppress warnings")
 	)
 	flag.Usage = func() {
-		fmt.Fprint(os.Stderr, "usage: inkcap [flags] file.md\n       inkcap init [-force]\n\n")
+		fmt.Fprint(os.Stderr, "usage: inkcap [flags] file.md\n       inkcap init [-force]\n       inkcap version\n\n")
 		fmt.Fprintf(os.Stderr, "config: %s\n\n", config.Path())
 		flag.PrintDefaults()
 	}

@@ -15,6 +15,7 @@ go build -o inkcap ./cmd/inkcap
 inkcap notes.md                    # -> notes.pdf
 inkcap init                        # write ~/.inkcap/config.toml
 inkcap -toc -style nord doc.md
+inkcap version                     # print version, Go version, platform
 ```
 
 ## Configuration
