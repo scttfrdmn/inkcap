@@ -313,6 +313,26 @@ func (b *builder) block(n ast.Node, indent float64, bar bool, marker *Marker, de
 	case *xast.Table:
 		b.table(v, indent, bar, marker)
 
+	case *xast.DefinitionList:
+		b.blocks(v, indent, bar, marker, depth)
+
+	case *xast.DefinitionTerm:
+		// The term is inline content; render it bold and keep it with the
+		// description that follows.
+		runs := b.runs(v, style{size: t.BodySize, weight: canvas.FontBold})
+		if len(runs) == 0 {
+			return
+		}
+		b.push(&Para{
+			base: base{after: 0.7, keep: true},
+			Runs: runs, Align: t.bodyAlign(), Opts: t.textOpts(),
+			Orphan: t.Orphans, Widow: t.Widows,
+		}, indent, bar, marker)
+
+	case *xast.DefinitionDescription:
+		// The description is block content, inset one step under its term.
+		b.blocks(v, indent+t.IndentStep, bar, nil, depth)
+
 	case *xast.FootnoteList:
 		if t.Footnotes == "none" {
 			return
