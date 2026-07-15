@@ -18,6 +18,11 @@ func buildText(runs []Run, w float64, halign canvas.TextAlign, opts *canvas.Text
 	}
 	rt := canvas.NewRichText(runs[0].Face)
 	for _, r := range runs {
+		if r.SVG != nil {
+			rt.SetFace(r.Face)
+			rt.WriteCanvas(r.SVG, canvas.FontMiddle)
+			continue
+		}
 		if r.Img != nil {
 			rt.SetFace(r.Face)
 			rt.WriteImage(r.Img, r.ImgRes, canvas.FontMiddle)
@@ -176,7 +181,7 @@ func (p *Para) Split(w, avail float64) (Block, Block, bool) {
 
 func (p *Para) hasImage() bool {
 	for _, r := range p.Runs {
-		if r.Img != nil {
+		if r.Img != nil || r.SVG != nil {
 			return true
 		}
 	}
@@ -434,20 +439,26 @@ func (h *Rule) Draw(r *Rctx, x, y, w float64) {
 
 type Image struct {
 	base
-	Img     image.Image
+	Img     image.Image    // raster figure
+	SVG     *canvas.Canvas // vector figure (mutually exclusive with Img)
 	Caption []Run
 	T       *Theme
 }
 
 func (im *Image) dims(w float64) (iw, ih float64) {
-	b := im.Img.Bounds()
-	dpi := im.T.ImageDPI
-	if dpi <= 0 {
-		dpi = 150
+	if im.SVG != nil {
+		// SVG carries its own physical size in mm; no DPI applies.
+		iw, ih = im.SVG.Size()
+	} else {
+		b := im.Img.Bounds()
+		dpi := im.T.ImageDPI
+		if dpi <= 0 {
+			dpi = 150
+		}
+		// Nominal DPI, scaled down to fit the measure.
+		iw = float64(b.Dx()) * 25.4 / dpi
+		ih = float64(b.Dy()) * 25.4 / dpi
 	}
-	// Nominal DPI, scaled down to fit the measure.
-	iw = float64(b.Dx()) * 25.4 / dpi
-	ih = float64(b.Dy()) * 25.4 / dpi
 	if iw > w {
 		ih *= w / iw
 		iw = w
@@ -469,11 +480,32 @@ func (im *Image) Split(w, avail float64) (Block, Block, bool) { return atomicSpl
 
 func (im *Image) Draw(r *Rctx, x, y, w float64) {
 	iw, ih := im.dims(w)
-	res := canvas.Resolution(float64(im.Img.Bounds().Dx()) / iw)
-	r.C.DrawImage(x+(w-iw)/2, y, im.Img, res)
+	ix := x + (w-iw)/2
+	if im.SVG != nil {
+		im.drawSVG(r, ix, y, iw, ih)
+	} else {
+		res := canvas.Resolution(float64(im.Img.Bounds().Dx()) / iw)
+		r.C.DrawImage(ix, y, im.Img, res)
+	}
 	if len(im.Caption) > 0 {
 		drawRuns(r, buildText(im.Caption, w, canvas.Center, im.T.textOpts()), x, y+ih+pt(4))
 	}
+}
+
+// drawSVG renders the vector canvas at (x, y) with size (iw, ih), where (x, y)
+// is the top-left corner in the page's y-down coordinate system. The SVG canvas
+// is authored y-up with its origin bottom-left, so we flip and translate into
+// PDF space (also y-up, origin bottom-left) via the raw renderer.
+func (im *Image) drawSVG(r *Rctx, x, y, iw, ih float64) {
+	sw, sh := im.SVG.Size()
+	if sw <= 0 || sh <= 0 {
+		return
+	}
+	sx, sy := iw/sw, ih/sh
+	// Page-bottom-left origin: the figure's bottom edge is at (PageH - (y+ih)).
+	yBottom := im.T.PageH - (y + ih)
+	view := canvas.Identity.Translate(x, yBottom).Scale(sx, sy)
+	im.SVG.RenderViewTo(r.C, view)
 }
 
 func plainText(runs []Run) string {

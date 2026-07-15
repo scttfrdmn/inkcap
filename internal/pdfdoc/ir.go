@@ -11,14 +11,16 @@ import (
 // every linked run gets its own FontFace instance, so a pointer lookup
 // recovers the URL when we walk the laid-out spans.
 //
-// When Img is set the run is an inline image rather than text; Face still
-// carries the surrounding style so RichText has a baseline to align it to.
+// When Img or SVG is set the run is an inline image rather than text; Face
+// still carries the surrounding style so RichText has a baseline to align it
+// to. SVG is a vector canvas already scaled to its target height.
 type Run struct {
 	Face   *canvas.FontFace
 	Text   string
 	Link   string
 	Img    image.Image
 	ImgRes canvas.Resolution
+	SVG    *canvas.Canvas
 }
 
 // Rctx is threaded through Draw so blocks can register PDF-level features
