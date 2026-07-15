@@ -1,6 +1,12 @@
-# inkcap
+<p align="center">
+  <img src="docs/img/hero.png" alt="inkcap — Markdown to typeset PDF. One static Go binary. No headless browser, no LaTeX, no CSS engine." width="820">
+</p>
 
-[![CI](https://github.com/scttfrdmn/inkcap/actions/workflows/ci.yml/badge.svg)](https://github.com/scttfrdmn/inkcap/actions/workflows/ci.yml)
+<p align="center">
+  <a href="https://github.com/scttfrdmn/inkcap/actions/workflows/ci.yml"><img src="https://github.com/scttfrdmn/inkcap/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+</p>
+
+# inkcap
 
 Markdown → typeset PDF. One static Go binary. No headless browser, no LaTeX,
 no CSS engine.
