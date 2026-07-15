@@ -223,6 +223,27 @@ func (b *builder) warnRune(r rune) {
 	b.warn = append(b.warn, fmt.Sprintf("no glyph for %q (U+%04X) in any configured font", r, r))
 }
 
+// imageRun builds an inline-image run scaled so the image's height matches the
+// cap height of the surrounding text, keeping its aspect ratio. The resolution
+// is chosen to yield that target height; the run keeps the text face so canvas
+// has a baseline to centre the image against.
+func (b *builder) imageRun(s style, img image.Image) Run {
+	f := b.face(s)
+	if s.link != "" {
+		b.links[f] = s.link
+	}
+	target := f.Metrics().CapHeight // mm
+	if target <= 0 {
+		target = pt(s.size) * 0.7
+	}
+	px := img.Bounds().Dy()
+	if px <= 0 {
+		px = 1
+	}
+	res := canvas.Resolution(float64(px) / target) // px per mm
+	return Run{Face: f, Img: img, ImgRes: res, Link: s.link}
+}
+
 func (b *builder) inline(n ast.Node, s style, out *[]Run) {
 	for c := n.FirstChild(); c != nil; c = c.NextSibling() {
 		switch v := c.(type) {
@@ -269,8 +290,14 @@ func (b *builder) inline(n ast.Node, s style, out *[]Run) {
 			ls.link = u
 			b.emit(ls, string(v.Label(b.src)), out)
 		case *ast.Image:
-			// inline images are rare in dev docs; render alt text
-			b.inline(v, s, out)
+			// An inline image renders at the surrounding text's cap height,
+			// vertically centred on the line. If the file is missing or fails to
+			// decode, fall back to the alt text.
+			if img, err := b.loadImage(string(v.Destination)); err == nil {
+				*out = append(*out, b.imageRun(s, img))
+			} else {
+				b.inline(v, s, out)
+			}
 		case *xast.FootnoteLink:
 			if b.t.Footnotes == "none" {
 				continue
