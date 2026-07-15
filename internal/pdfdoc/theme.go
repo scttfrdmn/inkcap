@@ -22,6 +22,8 @@ type Theme struct {
 
 	Text *canvas.FontFamily
 	Mono *canvas.FontFamily
+	// Fallback families, consulted in order for glyphs the primary faces lack.
+	Fallback []*canvas.FontFamily
 
 	BodySize   float64
 	CodeSize   float64
@@ -117,6 +119,20 @@ func New(c config.Config) (*Theme, error) {
 		return nil, err
 	}
 
+	var fallback []*canvas.FontFamily
+	for i, path := range c.Fonts.Fallback {
+		if path == "" {
+			continue
+		}
+		fam := canvas.NewFontFamily(fmt.Sprintf("fallback%d", i))
+		// Register the one file under every style, so a request for bold/italic
+		// still resolves to this fallback rather than failing.
+		if err := fam.LoadFontFile(path, canvas.FontRegular); err != nil {
+			return nil, fmt.Errorf("fallback font %s: %w", path, err)
+		}
+		fallback = append(fallback, fam)
+	}
+
 	col := func(s string) color.RGBA {
 		v, err := config.Hex(s)
 		if err != nil {
@@ -132,7 +148,7 @@ func New(c config.Config) (*Theme, error) {
 		MarginLeft: c.Page.Left, MarginRight: c.Page.Right,
 		FooterGap: 10,
 
-		Text: text, Mono: mono,
+		Text: text, Mono: mono, Fallback: fallback,
 
 		BodySize:   c.Type.BodySize,
 		CodeSize:   c.Type.CodeSize,

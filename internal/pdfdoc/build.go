@@ -37,15 +37,16 @@ type Doc struct {
 }
 
 type builder struct {
-	t     *Theme
-	src   []byte
-	base  string // directory for resolving relative image paths
-	items []Item
-	links map[*canvas.FontFace]string
-	notes map[*canvas.FontFace]int
-	body  map[int]Note
-	title string
-	warn  []string
+	t       *Theme
+	src     []byte
+	base    string // directory for resolving relative image paths
+	items   []Item
+	links   map[*canvas.FontFace]string
+	notes   map[*canvas.FontFace]int
+	body    map[int]Note
+	title   string
+	warn    []string
+	missing map[rune]bool // runes already warned about, deduped
 }
 
 // Parse converts markdown source into a block flow.
@@ -91,7 +92,9 @@ const (
 	colMuted
 )
 
-func (b *builder) face(s style) *canvas.FontFace {
+// faceArgs computes the point size and the canvas.Face() arguments (colour,
+// style, decorations) for a style, independent of which family renders it.
+func (b *builder) faceArgs(s style) (size float64, args []any) {
 	col := b.t.FG
 	if s.color == colMuted {
 		col = b.t.Muted
@@ -105,7 +108,7 @@ func (b *builder) face(s style) *canvas.FontFace {
 		deco = append(deco, canvas.FontUnderline)
 	}
 
-	args := []any{col}
+	args = []any{col}
 	if s.code {
 		st := canvas.FontRegular
 		if s.weight >= canvas.FontBold {
@@ -116,7 +119,7 @@ func (b *builder) face(s style) *canvas.FontFace {
 		}
 		args = append(args, st)
 		args = append(args, deco...)
-		return b.t.Mono.Face(s.size*0.92, args...)
+		return s.size * 0.92, args
 	}
 	st := s.weight
 	if s.italic {
@@ -124,17 +127,100 @@ func (b *builder) face(s style) *canvas.FontFace {
 	}
 	args = append(args, st)
 	args = append(args, deco...)
-	return b.t.Text.Face(s.size, args...)
+	return s.size, args
+}
+
+func (b *builder) face(s style) *canvas.FontFace {
+	size, args := b.faceArgs(s)
+	if s.code {
+		return b.t.Mono.Face(size, args...)
+	}
+	return b.t.Text.Face(size, args...)
+}
+
+// covers reports whether face has a glyph for r. Control characters (newlines,
+// the paragraph/line separators) have no glyph but are handled by the layout,
+// so they always count as covered — otherwise every line break would look like
+// a missing glyph.
+func covers(f *canvas.FontFace, r rune) bool {
+	if r < 0x20 || r == 0x2028 || r == 0x2029 || r == 0xFEFF {
+		return true
+	}
+	return f.Font.GlyphIndex(r) != 0
+}
+
+// faceFor returns the face that should render r: the primary face if it covers
+// r, else the first fallback family that does. A rune covered by nothing is
+// reported once and rendered (as .notdef) by the primary face.
+func (b *builder) faceFor(s style, primary *canvas.FontFace, r rune) *canvas.FontFace {
+	if covers(primary, r) {
+		return primary
+	}
+	size, args := b.faceArgs(s)
+	for _, fam := range b.t.Fallback {
+		ff := fam.Face(size, args...)
+		if covers(ff, r) {
+			if s.link != "" {
+				b.links[ff] = s.link
+			}
+			return ff
+		}
+	}
+	b.warnRune(r)
+	return primary
 }
 
 // run allocates a face and, when the style carries a URL, records it so the
-// renderer can attach a link annotation to the resulting spans.
+// renderer can attach a link annotation to the resulting spans. It does not do
+// glyph fallback; use emit for text that may contain non-Latin runes.
 func (b *builder) run(s style, txt string) Run {
 	f := b.face(s)
 	if s.link != "" {
 		b.links[f] = s.link
 	}
 	return Run{Face: f, Text: txt, Link: s.link}
+}
+
+// emit appends txt to out as one or more runs, switching to a fallback face for
+// any run of characters the primary face can't render. Adjacent characters that
+// share a face are coalesced, so ASCII text still produces a single run.
+func (b *builder) emit(s style, txt string, out *[]Run) {
+	if txt == "" {
+		return
+	}
+	primary := b.face(s)
+	if s.link != "" {
+		b.links[primary] = s.link
+	}
+	var cur strings.Builder
+	curFace := primary
+	flush := func() {
+		if cur.Len() > 0 {
+			*out = append(*out, Run{Face: curFace, Text: cur.String(), Link: s.link})
+			cur.Reset()
+		}
+	}
+	for _, r := range txt {
+		f := b.faceFor(s, primary, r)
+		if f != curFace {
+			flush()
+			curFace = f
+		}
+		cur.WriteRune(r)
+	}
+	flush()
+}
+
+// warnRune records a rune that no configured font can render, once each.
+func (b *builder) warnRune(r rune) {
+	if b.missing == nil {
+		b.missing = map[rune]bool{}
+	}
+	if b.missing[r] {
+		return
+	}
+	b.missing[r] = true
+	b.warn = append(b.warn, fmt.Sprintf("no glyph for %q (U+%04X) in any configured font", r, r))
 }
 
 func (b *builder) inline(n ast.Node, s style, out *[]Run) {
@@ -148,11 +234,9 @@ func (b *builder) inline(n ast.Node, s style, out *[]Run) {
 			if v.HardLineBreak() {
 				txt += "\n"
 			}
-			if txt != "" {
-				*out = append(*out, b.run(s, txt))
-			}
+			b.emit(s, txt, out)
 		case *ast.String:
-			*out = append(*out, b.run(s, string(v.Value)))
+			b.emit(s, string(v.Value), out)
 		case *ast.CodeSpan:
 			cs := s
 			cs.code = true
@@ -162,7 +246,7 @@ func (b *builder) inline(n ast.Node, s style, out *[]Run) {
 					buf.Write(t.Segment.Value(b.src))
 				}
 			}
-			*out = append(*out, b.run(cs, buf.String()))
+			b.emit(cs, buf.String(), out)
 		case *ast.Emphasis:
 			es := s
 			if v.Level >= 2 {
@@ -183,7 +267,7 @@ func (b *builder) inline(n ast.Node, s style, out *[]Run) {
 			ls := s
 			u := string(v.URL(b.src))
 			ls.link = u
-			*out = append(*out, b.run(ls, string(v.Label(b.src))))
+			b.emit(ls, string(v.Label(b.src)), out)
 		case *ast.Image:
 			// inline images are rare in dev docs; render alt text
 			b.inline(v, s, out)
