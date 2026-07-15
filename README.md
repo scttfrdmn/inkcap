@@ -40,6 +40,13 @@ go install github.com/scttfrdmn/inkcap/cmd/inkcap@latest
 # Docker
 docker run --rm -v "$PWD":/work ghcr.io/scttfrdmn/inkcap notes.md
 
+# Debian / Ubuntu (.deb) — swap in the version and arch you want
+curl -fsSLO https://github.com/scttfrdmn/inkcap/releases/latest/download/inkcap_0.2.0_linux_amd64.deb
+sudo dpkg -i inkcap_0.2.0_linux_amd64.deb
+
+# Fedora / RHEL (.rpm)
+sudo rpm -i https://github.com/scttfrdmn/inkcap/releases/latest/download/inkcap_0.2.0_linux_amd64.rpm
+
 # From source
 go build -o inkcap ./cmd/inkcap
 ```
