@@ -1,0 +1,16 @@
+# Build output
+/inkcap
+/dist/
+
+# Rendered output from testdata / local runs
+*.pdf
+!example.pdf
+
+# Go
+*.test
+*.out
+coverage.txt
+
+# Editor / OS
+.DS_Store
+*.swp
