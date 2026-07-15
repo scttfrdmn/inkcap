@@ -52,23 +52,50 @@ nfpms:
       - rpm
     bindir: /usr/bin
 
-dockers_v2:
-  - id: inkcap
+# Classic per-arch docker builds + a manifest. dockers_v2 was tried but its
+# multi-platform build context did not stage the binary for the COPY, so the
+# image build failed; this proven form builds each arch from its own GOOS/GOARCH
+# artifact and then stitches a multi-arch manifest.
+dockers:
+  - id: inkcap-amd64
+    goos: linux
+    goarch: amd64
     dockerfile: Dockerfile
-    images:
-      - "ghcr.io/scttfrdmn/inkcap"
-    platforms:
-      - "linux/amd64"
-      - "linux/arm64"
-    tags:
-      - "{{ .Version }}"
-      - "{{ if not .Prerelease }}latest{{ end }}"
-    labels:
-      org.opencontainers.image.title: "{{ .ProjectName }}"
-      org.opencontainers.image.version: "{{ .Version }}"
-      org.opencontainers.image.revision: "{{ .FullCommit }}"
-      org.opencontainers.image.source: "https://github.com/scttfrdmn/inkcap"
-      org.opencontainers.image.licenses: "Apache-2.0"
+    use: buildx
+    image_templates:
+      - "ghcr.io/scttfrdmn/inkcap:{{ .Version }}-amd64"
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--label=org.opencontainers.image.title={{ .ProjectName }}"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.revision={{ .FullCommit }}"
+      - "--label=org.opencontainers.image.source=https://github.com/scttfrdmn/inkcap"
+      - "--label=org.opencontainers.image.licenses=Apache-2.0"
+  - id: inkcap-arm64
+    goos: linux
+    goarch: arm64
+    dockerfile: Dockerfile
+    use: buildx
+    image_templates:
+      - "ghcr.io/scttfrdmn/inkcap:{{ .Version }}-arm64"
+    build_flag_templates:
+      - "--platform=linux/arm64"
+      - "--label=org.opencontainers.image.title={{ .ProjectName }}"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.revision={{ .FullCommit }}"
+      - "--label=org.opencontainers.image.source=https://github.com/scttfrdmn/inkcap"
+      - "--label=org.opencontainers.image.licenses=Apache-2.0"
+
+docker_manifests:
+  - name_template: "ghcr.io/scttfrdmn/inkcap:{{ .Version }}"
+    image_templates:
+      - "ghcr.io/scttfrdmn/inkcap:{{ .Version }}-amd64"
+      - "ghcr.io/scttfrdmn/inkcap:{{ .Version }}-arm64"
+  - name_template: "ghcr.io/scttfrdmn/inkcap:latest"
+    skip_push: auto # prereleases don't move :latest
+    image_templates:
+      - "ghcr.io/scttfrdmn/inkcap:{{ .Version }}-amd64"
+      - "ghcr.io/scttfrdmn/inkcap:{{ .Version }}-arm64"
 
 homebrew_casks:
   - name: inkcap
