@@ -8,7 +8,47 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/scttfrdmn/inkcap/internal/config"
 )
+
+// A figure's intrinsic size scales inversely with image_dpi, and the default is
+// 150 dpi. Uses a small image so it never hits the fit-to-measure clamp.
+func TestImageDPIScalesFigure(t *testing.T) {
+	img := image.NewRGBA(image.Rect(0, 0, 300, 150))
+
+	dims := func(dpi float64) (w, h float64) {
+		th := theme(t, func(c *config.Config) { c.Document.ImageDPI = dpi })
+		im := &Image{Img: img, T: th}
+		return im.dims(1000) // wide measure: no clamping
+	}
+
+	w150, h150 := dims(150)
+	// 300 px at 150 dpi = 2 in = 50.8 mm.
+	if got := 300 * 25.4 / 150; !approx(w150, got) {
+		t.Errorf("at 150 dpi width = %.2f, want %.2f", w150, got)
+	}
+
+	w300, h300 := dims(300)
+	// Doubling the DPI halves the physical size.
+	if !approx(w300, w150/2) || !approx(h300, h150/2) {
+		t.Errorf("300 dpi: got %.2fx%.2f, want half of %.2fx%.2f", w300, h300, w150, h150)
+	}
+
+	// A zero/unset DPI must fall back to 150, not divide by zero.
+	th := theme(t, func(c *config.Config) { c.Document.ImageDPI = 0 })
+	if th.ImageDPI != 150 {
+		t.Errorf("unset image_dpi = %v, want default 150", th.ImageDPI)
+	}
+}
+
+func approx(a, b float64) bool {
+	d := a - b
+	if d < 0 {
+		d = -d
+	}
+	return d < 0.01
+}
 
 // writePNG writes a solid w×h PNG to a temp file and returns its path.
 func writePNG(t *testing.T, w, h int) string {
