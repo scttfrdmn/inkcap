@@ -18,6 +18,11 @@ func buildText(runs []Run, w float64, halign canvas.TextAlign, opts *canvas.Text
 	}
 	rt := canvas.NewRichText(runs[0].Face)
 	for _, r := range runs {
+		if r.Img != nil {
+			rt.SetFace(r.Face)
+			rt.WriteImage(r.Img, r.ImgRes, canvas.FontMiddle)
+			continue
+		}
 		rt.WriteFace(r.Face, r.Text)
 	}
 	return rt.ToText(w, 0, halign, canvas.Top, opts)
@@ -129,6 +134,12 @@ func (p *Para) Split(w, avail float64) (Block, Block, bool) {
 	if t.Height <= avail {
 		return p, nil, true
 	}
+	// A paragraph carrying an inline image can't be line-split: extractLines /
+	// joinLines rebuild runs from text spans only and would drop the image. Such
+	// paragraphs are short by nature, so move the whole thing to the next page.
+	if p.hasImage() {
+		return nil, p, true
+	}
 	lines := extractLines(t)
 	k := fitLines(lines, w, avail, p.Align, p.Opts)
 
@@ -161,6 +172,15 @@ func (p *Para) Split(w, avail float64) (Block, Block, bool) {
 	tail.Runs = joinLines(lines[k:])
 	tail.before = 0
 	return &head, &tail, true
+}
+
+func (p *Para) hasImage() bool {
+	for _, r := range p.Runs {
+		if r.Img != nil {
+			return true
+		}
+	}
+	return false
 }
 
 func (p *Para) Refs(reg map[*canvas.FontFace]int) []int { return refsIn(p.Runs, reg) }

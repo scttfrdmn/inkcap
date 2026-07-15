@@ -1,6 +1,8 @@
 package pdfdoc
 
 import (
+	"image"
+
 	"github.com/tdewolff/canvas"
 	"github.com/tdewolff/canvas/renderers/pdf"
 )
@@ -8,10 +10,15 @@ import (
 // Run is a styled inline fragment. Face identity doubles as the link key:
 // every linked run gets its own FontFace instance, so a pointer lookup
 // recovers the URL when we walk the laid-out spans.
+//
+// When Img is set the run is an inline image rather than text; Face still
+// carries the surrounding style so RichText has a baseline to align it to.
 type Run struct {
-	Face *canvas.FontFace
-	Text string
-	Link string
+	Face   *canvas.FontFace
+	Text   string
+	Link   string
+	Img    image.Image
+	ImgRes canvas.Resolution
 }
 
 // Rctx is threaded through Draw so blocks can register PDF-level features
