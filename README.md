@@ -270,6 +270,17 @@ by exact character count with a two-column hanging indent, so a long line breaks
 without reflowing away its indentation. Token faces are cached by
 `chroma.StyleEntry`, so a 2,000-line block allocates a handful of font faces.
 
+## Images
+
+An image on its own line is a centred figure with an optional caption; an image
+mid-paragraph is inline, scaled to the surrounding text's cap height. Raster
+formats (PNG, JPEG, GIF) embed at `image_dpi` (default 150). **SVG** embeds as
+true vector — parsed by `tdewolff/canvas`, so it stays sharp at any zoom and
+`image_dpi` doesn't apply (the SVG carries its own size). A missing file or an
+SVG the parser can't handle falls back to the image's alt text. The SVG parser
+is not a full SVG/CSS engine; exotic features (filters, some `<text>`, CSS
+gradients) may render partially.
+
 ## HTML
 
 `html = "strip"` (default) keeps the text and drops the tags; `<br>` becomes a

@@ -244,6 +244,33 @@ func (b *builder) imageRun(s style, img image.Image) Run {
 	return Run{Face: f, Img: img, ImgRes: res, Link: s.link}
 }
 
+// svgRun builds an inline SVG run scaled so the graphic's height matches the
+// cap height of the surrounding text, preserving aspect ratio.
+func (b *builder) svgRun(s style, c *canvas.Canvas) Run {
+	f := b.face(s)
+	if s.link != "" {
+		b.links[f] = s.link
+	}
+	target := f.Metrics().CapHeight // mm
+	if target <= 0 {
+		target = pt(s.size) * 0.7
+	}
+	return Run{Face: f, SVG: scaleCanvasToHeight(c, target), Link: s.link}
+}
+
+// scaleCanvasToHeight returns a new canvas of the source scaled uniformly so
+// its height is h mm (aspect preserved). A degenerate source is returned as-is.
+func scaleCanvasToHeight(src *canvas.Canvas, h float64) *canvas.Canvas {
+	sw, sh := src.Size()
+	if sw <= 0 || sh <= 0 || h <= 0 {
+		return src
+	}
+	scale := h / sh
+	dst := canvas.New(sw*scale, sh*scale)
+	src.RenderViewTo(dst, canvas.Identity.Scale(scale, scale))
+	return dst
+}
+
 func (b *builder) inline(n ast.Node, s style, out *[]Run) {
 	for c := n.FirstChild(); c != nil; c = c.NextSibling() {
 		switch v := c.(type) {
@@ -293,7 +320,14 @@ func (b *builder) inline(n ast.Node, s style, out *[]Run) {
 			// An inline image renders at the surrounding text's cap height,
 			// vertically centred on the line. If the file is missing or fails to
 			// decode, fall back to the alt text.
-			if img, err := b.loadImage(string(v.Destination)); err == nil {
+			dest := string(v.Destination)
+			if isSVG(dest) {
+				if c, err := b.loadSVG(dest); err == nil {
+					*out = append(*out, b.svgRun(s, c))
+				} else {
+					b.inline(v, s, out)
+				}
+			} else if img, err := b.loadImage(dest); err == nil {
 				*out = append(*out, b.imageRun(s, img))
 			} else {
 				b.inline(v, s, out)
@@ -374,8 +408,20 @@ func (b *builder) block(n ast.Node, indent float64, bar bool, marker *Marker, de
 		// A paragraph whose only content is an image becomes a figure.
 		if p, ok := v.(*ast.Paragraph); ok && p.ChildCount() == 1 {
 			if img, ok := p.FirstChild().(*ast.Image); ok {
-				if m, err := b.loadImage(string(img.Destination)); err == nil {
-					cap := b.runs(img, style{size: t.SmallSize, color: colMuted})
+				dest := string(img.Destination)
+				cap := b.runs(img, style{size: t.SmallSize, color: colMuted})
+				if isSVG(dest) {
+					if c, err := b.loadSVG(dest); err == nil {
+						b.push(&Image{
+							base:    base{before: t.BlockSpace, after: t.BlockSpace},
+							SVG:     c,
+							Caption: cap,
+							T:       t,
+						}, indent, bar, marker)
+						return
+					}
+					// fall through to alt text if the SVG is missing/invalid
+				} else if m, err := b.loadImage(dest); err == nil {
 					b.push(&Image{
 						base:    base{before: t.BlockSpace, after: t.BlockSpace},
 						Img:     m,
@@ -726,4 +772,29 @@ func (b *builder) loadImage(rel string) (image.Image, error) {
 	defer f.Close()
 	img, _, err := image.Decode(f)
 	return img, err
+}
+
+// isSVG reports whether a destination looks like an SVG, by extension.
+func isSVG(rel string) bool {
+	return strings.EqualFold(filepath.Ext(rel), ".svg")
+}
+
+// loadSVG parses an SVG file into a vector canvas that embeds losslessly into
+// the PDF. Returns an error (→ alt-text fallback) if the file is missing or the
+// parser rejects it.
+func (b *builder) loadSVG(rel string) (*canvas.Canvas, error) {
+	p := rel
+	if !filepath.IsAbs(p) {
+		p = filepath.Join(b.base, rel)
+	}
+	f, err := os.Open(p)
+	if err != nil {
+		return nil, fmt.Errorf("image %s: %w", rel, err)
+	}
+	defer f.Close()
+	c, err := canvas.ParseSVG(f)
+	if err != nil {
+		return nil, fmt.Errorf("image %s: %w", rel, err)
+	}
+	return c, nil
 }
