@@ -1,0 +1,48 @@
+name: Bug report
+description: Something inkcap does wrong — a crash, a layout defect, wrong output
+labels: ["type: bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. A minimal Markdown input that reproduces the
+        problem is the single most useful thing you can provide.
+  - type: textarea
+    id: input
+    attributes:
+      label: Minimal Markdown input
+      description: The smallest document that triggers the bug. Paste it or attach the .md file.
+      render: markdown
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command
+      description: How you invoked inkcap (flags, config).
+      placeholder: inkcap -toc -style nord doc.md
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected vs. what happened
+      description: Describe the correct output and how the actual output differs. Screenshots of the PDF help.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `inkcap version`.
+      placeholder: inkcap v0.1.0 go1.25 linux/amd64
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: Config (optional)
+      description: Relevant parts of your ~/.inkcap/config.toml, if any.
+      render: toml
+    validations:
+      required: false
