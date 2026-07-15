@@ -51,6 +51,10 @@ type Face struct {
 type Fonts struct {
 	Text Face `toml:"text"`
 	Mono Face `toml:"mono"`
+	// Fallback lists font files consulted, in order, for any glyph the primary
+	// text/mono face lacks. Empty by default: inkcap embeds only Latin faces,
+	// so point this at e.g. a CJK or symbol font to cover those ranges.
+	Fallback []string `toml:"fallback"`
 }
 
 type Typography struct {
@@ -304,4 +308,10 @@ html           = "strip"  # strip: keep the text, drop the tags. drop: discard.
 # regular = "/usr/share/fonts/.../JetBrainsMono-Regular.ttf"
 # bold    = "/usr/share/fonts/.../JetBrainsMono-Bold.ttf"
 # italic  = "/usr/share/fonts/.../JetBrainsMono-Italic.ttf"
+
+# Fallback fonts, consulted in order for any glyph the primary faces lack.
+# The embedded faces cover Latin only; add a CJK or symbol font here to widen
+# coverage. A glyph missing from every fallback is reported once on stderr.
+# [fonts]
+# fallback = ["/usr/share/fonts/.../NotoSansCJK-Regular.otf"]
 `

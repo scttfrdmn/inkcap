@@ -135,6 +135,12 @@ anything left blank.
 |---|---|
 | `regular`, `bold`, `italic`, `bold_italic` | paths to `.ttf`/`.otf` files; any left blank falls back to the embedded IBM Plex face (`[fonts.mono]` has no `bold_italic`) |
 
+### `[fonts]`
+
+| Key | Default | Meaning |
+|---|---|---|
+| `fallback` | `[]` | font files consulted in order for any glyph the primary faces lack. The embedded faces cover Latin only; add e.g. a CJK or symbol font here. A glyph missing from every fallback is reported once on stderr. |
+
 ### Flags
 
 Flags override the config file for a single run.
