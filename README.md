@@ -9,6 +9,8 @@ no CSS engine.
 
 ```
 go install github.com/scttfrdmn/inkcap/cmd/inkcap@latest
+# or grab a prebuilt binary from the Releases page:
+#   https://github.com/scttfrdmn/inkcap/releases
 # or, from a clone:
 go build -o inkcap ./cmd/inkcap
 
