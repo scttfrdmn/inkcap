@@ -63,7 +63,7 @@ func Parse(src []byte, baseDir string, t *Theme) (*Doc, error) {
 		notes: map[*canvas.FontFace]int{},
 		body:  map[int]Note{},
 	}
-	b.blocks(root, 0, false, nil)
+	b.blocks(root, 0, false, nil, 0)
 	return &Doc{
 		Items: b.items, Links: b.links, Notes: b.notes, Body: b.body,
 		Title: b.title, Warn: b.warn, T: t,
@@ -222,19 +222,22 @@ func (b *builder) push(blk Block, indent float64, bar bool, m *Marker) {
 	b.items = append(b.items, Item{B: blk, Indent: indent, Bar: bar, Marker: m})
 }
 
-func (b *builder) blocks(n ast.Node, indent float64, bar bool, marker *Marker) {
+// depth is the list-nesting level (0 at the document root); it selects the
+// unordered-list bullet glyph independently of the millimetre inset, so a
+// custom spacing.indent doesn't disturb the bullet cycle.
+func (b *builder) blocks(n ast.Node, indent float64, bar bool, marker *Marker, depth int) {
 	first := true
 	for c := n.FirstChild(); c != nil; c = c.NextSibling() {
 		m := marker
 		if !first {
 			m = nil
 		}
-		b.block(c, indent, bar, m)
+		b.block(c, indent, bar, m, depth)
 		first = false
 	}
 }
 
-func (b *builder) block(n ast.Node, indent float64, bar bool, marker *Marker) {
+func (b *builder) block(n ast.Node, indent float64, bar bool, marker *Marker, depth int) {
 	t := b.t
 	body := style{size: t.BodySize}
 
@@ -296,13 +299,13 @@ func (b *builder) block(n ast.Node, indent float64, bar bool, marker *Marker) {
 		b.push(b.code(v.Lines(), ""), indent, bar, marker)
 
 	case *ast.Blockquote:
-		b.blocks(v, indent+t.IndentStep, true, marker)
+		b.blocks(v, indent+t.IndentStep, true, marker, depth)
 
 	case *ast.List:
-		b.list(v, indent)
+		b.list(v, indent, depth+1)
 
 	case *ast.ListItem:
-		b.blocks(v, indent, bar, marker)
+		b.blocks(v, indent, bar, marker, depth)
 
 	case *ast.ThematicBreak:
 		b.push(&Rule{base: base{before: t.BlockSpace, after: t.BlockSpace}, T: t}, indent, bar, marker)
@@ -352,7 +355,7 @@ func (b *builder) block(n ast.Node, indent float64, bar bool, marker *Marker) {
 		}, indent, bar, marker)
 
 	default:
-		b.blocks(n, indent, bar, marker)
+		b.blocks(n, indent, bar, marker, depth)
 	}
 }
 
@@ -389,7 +392,7 @@ func (b *builder) warnHTML(raw string) {
 	}
 }
 
-func (b *builder) list(v *ast.List, indent float64) {
+func (b *builder) list(v *ast.List, indent float64, depth int) {
 	t := b.t
 	i := v.Start
 	if i == 0 {
@@ -401,7 +404,7 @@ func (b *builder) list(v *ast.List, indent float64) {
 			label = strconv.Itoa(i) + "."
 			i++
 		} else {
-			label = markerGlyph(indent)
+			label = markerGlyph(depth)
 		}
 		mk := &Marker{Text: label, Face: b.face(style{size: t.BodySize, color: colFG})}
 
@@ -418,12 +421,15 @@ func (b *builder) list(v *ast.List, indent float64) {
 				}
 			}
 		}
-		b.blocks(li, indent+t.IndentStep, false, mk)
+		b.blocks(li, indent+t.IndentStep, false, mk, depth)
 	}
 }
 
-func markerGlyph(indent float64) string {
-	switch int(indent) / 7 % 3 {
+// markerGlyph cycles the unordered-list bullet by nesting depth: \u2022 at the top
+// level, \u25e6 one level in, \u2013 deeper, then repeating. depth is 1-based here (the
+// outermost list is depth 1).
+func markerGlyph(depth int) string {
+	switch (depth - 1) % 3 {
 	case 0:
 		return "\u2022"
 	case 1:
