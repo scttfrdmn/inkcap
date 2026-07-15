@@ -11,6 +11,10 @@
 *.out
 coverage.txt
 
+# Secrets / local env
+.env
+.env.*
+
 # Editor / OS
 .DS_Store
 *.swp
