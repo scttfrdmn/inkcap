@@ -176,3 +176,24 @@ func TestHeadingRulesSetting(t *testing.T) {
 		}
 	}
 }
+
+// An ordered list numbers from its literal start, including 0.
+func TestOrderedListStart(t *testing.T) {
+	th := theme(t, nil)
+	for src, want := range map[string][]string{
+		"0. a\n1. b\n": {"0.", "1."},
+		"1. a\n2. b\n": {"1.", "2."},
+		"7. a\n8. b\n": {"7.", "8."},
+		"3) a\n4) b\n": {"3.", "4."},
+	} {
+		var got []string
+		for _, it := range parse(t, src, th).Items {
+			if it.Marker != nil {
+				got = append(got, it.Marker.Text)
+			}
+		}
+		if strings.Join(got, " ") != strings.Join(want, " ") {
+			t.Errorf("%q: markers %v, want %v", src, got, want)
+		}
+	}
+}

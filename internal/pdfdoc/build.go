@@ -571,10 +571,7 @@ func (b *builder) warnHTML(raw string) {
 
 func (b *builder) list(v *ast.List, indent float64, depth int) {
 	t := b.t
-	i := v.Start
-	if i == 0 {
-		i = 1
-	}
+	i := v.Start // goldmark sets this for every ordered list; 0 is a real start
 	for li := v.FirstChild(); li != nil; li = li.NextSibling() {
 		var label string
 		if v.IsOrdered() {
