@@ -57,10 +57,15 @@ func extractLines(t *canvas.Text) [][]Run {
 // joinLines re-flattens a slice of lines back into a run list, restoring the
 // inter-line space that the line breaker consumed and merging adjacent runs
 // that share a face.
+//
+// A line ended by a hard break keeps its "\n" in the extracted text. No space
+// is added after one (the break already separates the lines), and a trailing
+// "\n" on the final line is dropped: otherwise canvas lays out an extra empty
+// line, a k-line prefix measures as k+1 lines, and fitLines can never fit one.
 func joinLines(lines [][]Run) []Run {
 	var out []Run
 	for i, ln := range lines {
-		if i > 0 && len(out) > 0 && len(ln) > 0 {
+		if i > 0 && len(out) > 0 && len(ln) > 0 && !strings.HasSuffix(out[len(out)-1].Text, "\n") {
 			out[len(out)-1].Text += " "
 		}
 		for _, r := range ln {
@@ -69,6 +74,12 @@ func joinLines(lines [][]Run) []Run {
 				continue
 			}
 			out = append(out, r)
+		}
+	}
+	if n := len(out); n > 0 {
+		out[n-1].Text = strings.TrimSuffix(out[n-1].Text, "\n")
+		if out[n-1].Text == "" {
+			out = out[:n-1]
 		}
 	}
 	return out

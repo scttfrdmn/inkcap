@@ -270,3 +270,46 @@ func itoa(i int) string {
 	}
 	return string(b)
 }
+
+// A paragraph made of hard line breaks (poetry, addresses) must split across
+// pages like any other, without losing, duplicating, or re-indenting lines.
+func TestHardBrokenParagraphSplits(t *testing.T) {
+	th := theme(t, nil)
+	const n = 150 // roughly three pages of single lines
+	var sb strings.Builder
+	for i := 0; i < n; i++ {
+		sb.WriteString("verse line " + itoa(i) + "  \n")
+	}
+	d := parse(t, sb.String(), th)
+	pages := d.paginate(d.Items)
+
+	bottom := th.PageH - th.MarginBottom
+	var got []string
+	frags := 0
+	for i, p := range pages {
+		for _, pl := range p.Items {
+			if end := pl.Y + pl.H; end > bottom+0.01 {
+				t.Errorf("page %d: block ends at %.1fmm, past the bottom margin (%.1fmm)", i+1, end, bottom)
+			}
+			para, ok := pl.It.B.(*Para)
+			if !ok {
+				continue
+			}
+			frags++
+			for _, ln := range strings.Split(plainText(para.Runs), "\n") {
+				got = append(got, ln)
+			}
+		}
+	}
+	if frags < 3 {
+		t.Fatalf("paragraph split into %d fragment(s), want >= 3", frags)
+	}
+	if len(got) != n {
+		t.Fatalf("got %d lines across fragments, want %d", len(got), n)
+	}
+	for i, ln := range got {
+		if want := "verse line " + itoa(i); ln != want {
+			t.Fatalf("line %d = %q, want %q", i, ln, want)
+		}
+	}
+}
