@@ -1,6 +1,8 @@
 package pdfdoc
 
 import (
+	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/scttfrdmn/inkcap/internal/config"
@@ -92,5 +94,66 @@ func TestDefinitionListStyled(t *testing.T) {
 	}
 	if descs != 2 {
 		t.Errorf("found %d descriptions, want 2", descs)
+	}
+}
+
+// Every default list marker must be renderable: text markers only with glyphs
+// their face actually has, and the glyphs the embedded faces lack (◦ ☐ ☑)
+// drawn as vector shapes. Before, nested and task lists drew .notdef boxes.
+func TestListMarkersRenderable(t *testing.T) {
+	src := "- a\n  - b\n    - c\n\n" +
+		"1. one\n2. two\n\n" +
+		"- [ ] todo\n- [x] done\n"
+	th := theme(t, nil)
+	d := parse(t, src, th)
+
+	shapes := map[string]MarkerShape{}
+	for _, it := range d.Items {
+		m := it.Marker
+		if m == nil {
+			continue
+		}
+		shapes[m.Text] = m.Shape
+		if m.Shape != ShapeText {
+			continue
+		}
+		for _, r := range m.Text {
+			if !covers(m.Face, r) {
+				t.Errorf("marker %q: face has no glyph for %q (U+%04X)", m.Text, r, r)
+			}
+		}
+	}
+	want := map[string]MarkerShape{
+		"•": ShapeText, "◦": ShapeRing, "–": ShapeText,
+		"1.": ShapeText, "2.": ShapeText,
+		"☐": ShapeBox, "☑": ShapeBoxChecked,
+	}
+	for txt, sh := range want {
+		got, ok := shapes[txt]
+		if !ok {
+			t.Errorf("no %q marker built", txt)
+		} else if got != sh {
+			t.Errorf("marker %q: shape %d, want %d", txt, got, sh)
+		}
+	}
+	if len(d.Warn) != 0 {
+		t.Errorf("unexpected warnings: %v", d.Warn)
+	}
+	// Drawing the shapes must not fail.
+	var buf bytes.Buffer
+	if err := d.Render(&buf, ""); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A text marker with a rune no configured font covers is reported, rather
+// than silently drawn as .notdef.
+func TestMarkerMissingGlyphWarns(t *testing.T) {
+	th := theme(t, nil)
+	b := &builder{t: th, links: map[*canvas.FontFace]string{}}
+	s := style{size: th.BodySize}
+	b.markerFace(s, b.face(s), "中.")
+	if len(b.warn) != 1 || !strings.Contains(b.warn[0], "U+4E2D") {
+		t.Errorf("warnings = %v, want one for U+4E2D", b.warn)
 	}
 }

@@ -87,10 +87,26 @@ type Item struct {
 }
 
 // Marker is a list bullet or number, right-aligned into the indent gutter.
+//
+// Text is always the marker's meaning ("•", "3.", "☐"). When Shape is set the
+// marker is drawn as vector paths instead of as Text: the embedded faces have
+// no hollow-bullet or ballot-box glyphs, and a drawn shape can't come out as
+// .notdef whatever font is configured.
 type Marker struct {
-	Text string
-	Face *canvas.FontFace
+	Text  string
+	Face  *canvas.FontFace
+	Shape MarkerShape
 }
+
+// MarkerShape selects a vector-drawn list marker; ShapeText means "draw Text".
+type MarkerShape int
+
+const (
+	ShapeText       MarkerShape = iota
+	ShapeRing                   // hollow bullet, second nesting level
+	ShapeBox                    // unchecked task
+	ShapeBoxChecked             // checked task
+)
 
 // split forwards to the block and preserves decoration, dropping the marker
 // on the continuation fragment.

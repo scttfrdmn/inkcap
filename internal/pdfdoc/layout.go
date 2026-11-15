@@ -358,13 +358,65 @@ func (d *Doc) paint(r *Rctx, pl Placed) {
 		r.C.LineTo(bx, pl.Y+pl.H)
 		r.C.Stroke()
 	}
-	if it.Marker != nil {
+	if m := it.Marker; m != nil {
 		gutter := t.IndentStep - 1.6
-		mt := buildText([]Run{{Face: it.Marker.Face, Text: it.Marker.Text}},
-			gutter, canvas.Right, t.textOpts())
-		r.C.DrawText(pl.X-t.IndentStep, pl.Y, mt)
+		if m.Shape == ShapeText {
+			mt := buildText([]Run{{Face: m.Face, Text: m.Text}},
+				gutter, canvas.Right, t.textOpts())
+			r.C.DrawText(pl.X-t.IndentStep, pl.Y, mt)
+		} else {
+			drawMarkerShape(r, m, pl.X-1.6, pl.Y+markerBaseline(m.Face, t))
+		}
 	}
 	it.B.Draw(r, pl.X, pl.Y, pl.W)
+}
+
+// markerBaseline is the distance from the top of a marker's line to its
+// baseline, measured from a laid-out reference glyph so it tracks the same
+// leading as a text marker.
+func markerBaseline(f *canvas.FontFace, t *Theme) float64 {
+	base := f.Metrics().Ascent
+	ref := buildText([]Run{{Face: f, Text: "x"}}, 0, canvas.Left, t.textOpts())
+	if ref != nil {
+		// WalkSpans reports the baseline y-up (-line.y); flip it to y-down.
+		ref.WalkSpans(func(_, sy float64, _ canvas.TextSpan) { base = -sy })
+	}
+	return base
+}
+
+// drawMarkerShape draws a vector list marker whose right edge is at right and
+// which sits on baseline (both y-down page coordinates), sized from the face
+// metrics so it scales with the body size.
+func drawMarkerShape(r *Rctx, m *Marker, right, baseline float64) {
+	fm := m.Face.Metrics()
+	col := m.Face.Fill.Color
+	r.C.SetFillColor(canvas.Transparent)
+	r.C.SetStrokeColor(col)
+
+	switch m.Shape {
+	case ShapeRing:
+		rad := fm.XHeight * 0.27
+		sw := 0.2
+		r.C.SetStrokeWidth(sw)
+		r.C.DrawPath(right-rad-sw/2, baseline-fm.XHeight/2, canvas.Circle(rad))
+
+	case ShapeBox, ShapeBoxChecked:
+		s := fm.CapHeight * 0.95
+		left, top := right-s, baseline-s
+		r.C.SetStrokeWidth(0.22)
+		r.C.DrawPath(left, top, canvas.Rectangle(s, s))
+		if m.Shape == ShapeBoxChecked {
+			r.C.SetStrokeWidth(0.32)
+			r.C.SetStrokeCapper(canvas.RoundCap)
+			r.C.SetStrokeJoiner(canvas.RoundJoin)
+			r.C.MoveTo(left+0.2*s, top+0.52*s)
+			r.C.LineTo(left+0.42*s, top+0.76*s)
+			r.C.LineTo(left+0.82*s, top+0.24*s)
+			r.C.Stroke()
+			r.C.SetStrokeCapper(canvas.ButtCap)
+			r.C.SetStrokeJoiner(canvas.MiterJoin)
+		}
+	}
 }
 
 // drawNotes paints the footnote area at the foot of the text block.

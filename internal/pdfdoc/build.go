@@ -583,23 +583,60 @@ func (b *builder) list(v *ast.List, indent float64, depth int) {
 		} else {
 			label = markerGlyph(depth)
 		}
-		mk := &Marker{Text: label, Face: b.face(style{size: t.BodySize, color: colFG})}
+		ms := style{size: t.BodySize, color: colFG}
+		mk := &Marker{Text: label, Face: b.face(ms)}
+		if label == "\u25e6" {
+			mk.Shape = ShapeRing
+		}
 
 		// A task-list checkbox replaces the bullet.
 		if item, ok := li.(*ast.ListItem); ok {
 			if tb := item.FirstChild(); tb != nil {
 				if cb, ok := tb.FirstChild().(*xast.TaskCheckBox); ok {
 					if cb.IsChecked {
-						mk.Text = "\u2611"
+						mk.Text, mk.Shape = "\u2611", ShapeBoxChecked
 					} else {
-						mk.Text = "\u2610"
+						mk.Text, mk.Shape = "\u2610", ShapeBox
 					}
 					tb.RemoveChild(tb, cb)
 				}
 			}
 		}
+		if mk.Shape == ShapeText {
+			mk.Face = b.markerFace(ms, mk.Face, mk.Text)
+		}
 		b.blocks(li, indent+t.IndentStep, false, mk, depth)
 	}
+}
+
+// markerFace returns a face that can render every rune of a text marker: the
+// primary face if it covers them all, else the first fallback family that
+// does. Uncovered runes are reported, so a custom font without "\u2022" is noticed
+// rather than silently drawing .notdef boxes.
+func (b *builder) markerFace(s style, primary *canvas.FontFace, txt string) *canvas.FontFace {
+	all := func(f *canvas.FontFace) bool {
+		for _, r := range txt {
+			if !covers(f, r) {
+				return false
+			}
+		}
+		return true
+	}
+	if all(primary) {
+		return primary
+	}
+	size, args := b.faceArgs(s)
+	for _, fam := range b.t.Fallback {
+		if ff := fam.Face(size, args...); all(ff) {
+			return ff
+		}
+	}
+	for _, r := range txt {
+		if !covers(primary, r) {
+			b.warnRune(r)
+		}
+	}
+	return primary
 }
 
 // markerGlyph cycles the unordered-list bullet by nesting depth: \u2022 at the top
