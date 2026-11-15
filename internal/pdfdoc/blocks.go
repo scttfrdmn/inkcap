@@ -116,8 +116,9 @@ func drawRuns(r *Rctx, t *canvas.Text, x, y float64) {
 		if !ok {
 			return
 		}
+		// WalkSpans reports the baseline y-up (-line.y); y here grows downward.
 		m := span.Face.Metrics()
-		r.Link(uri, x+sx, y+sy-m.Ascent, span.Width, m.Ascent+m.Descent)
+		r.Link(uri, x+sx, y-sy-m.Ascent, span.Width, m.Ascent+m.Descent)
 	})
 }
 
