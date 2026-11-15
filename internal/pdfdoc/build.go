@@ -394,12 +394,15 @@ func (b *builder) block(n ast.Node, indent float64, bar bool, marker *Marker, de
 		}
 		hs := style{size: t.HeadSize[lvl-1], weight: canvas.FontBold}
 		runs := b.runs(v, hs)
+		// Footnote ref markers are superscript digits in the runs; they must
+		// not leak into the title, running header, outline or TOC.
+		plain := plainText(withoutRefs(runs, b.notes))
 		if lvl == 1 && b.title == "" {
-			b.title = plainText(runs)
+			b.title = plain
 		}
 		h := &Heading{
 			base:  base{before: t.HeadSpaceHi[lvl-1], after: t.HeadSpaceLo[lvl-1], keep: true},
-			Level: lvl, Runs: runs, Plain: plainText(runs),
+			Level: lvl, Runs: runs, Plain: plain,
 			Opts: t.textOpts(), Rule: lvl <= t.HeadingRules, T: t,
 		}
 		b.push(h, indent, bar, marker)

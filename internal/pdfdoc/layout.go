@@ -193,7 +193,7 @@ func (d *Doc) buildTOC(pages []Page) []Item {
 				B: &TocLine{
 					base:  base{after: 0.6},
 					Level: h.Level,
-					Runs:  h.Runs,
+					Runs:  withoutRefs(h.Runs, d.Notes),
 					Page:  i + 1,
 					T:     t,
 				},

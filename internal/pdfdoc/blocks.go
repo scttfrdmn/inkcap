@@ -520,6 +520,17 @@ func (im *Image) drawSVG(r *Rctx, x, y, iw, ih float64) {
 	im.SVG.RenderViewTo(r.C, view)
 }
 
+// withoutRefs returns runs minus the footnote ref markers registered in reg.
+func withoutRefs(runs []Run, reg map[*canvas.FontFace]int) []Run {
+	out := make([]Run, 0, len(runs))
+	for _, r := range runs {
+		if _, isRef := reg[r.Face]; !isRef {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
 func plainText(runs []Run) string {
 	var sb strings.Builder
 	for _, r := range runs {

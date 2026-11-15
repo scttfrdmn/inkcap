@@ -197,3 +197,24 @@ func TestOrderedListStart(t *testing.T) {
 		}
 	}
 }
+
+// A footnote ref in a heading must not leak its number into the document
+// title (PDF metadata, running header), the outline entry, or the TOC line.
+func TestFootnoteRefNotInHeadingText(t *testing.T) {
+	th := theme(t, func(c *config.Config) { c.Document.TOC = true })
+	src := "# Intro[^1]\n\nLead.\n\n## Setup[^2] steps\n\nBody.\n\n[^1]: one\n[^2]: two\n"
+	d := parse(t, src, th)
+	if d.Title != "Intro" {
+		t.Errorf("Title = %q, want %q", d.Title, "Intro")
+	}
+	for _, it := range d.Items {
+		if h, ok := it.B.(*Heading); ok && strings.ContainsAny(h.Plain, "12") {
+			t.Errorf("H%d Plain = %q contains a footnote number", h.Level, h.Plain)
+		}
+	}
+	for _, it := range d.buildTOC(d.paginate(d.Items)) {
+		if l, ok := it.B.(*TocLine); ok && strings.ContainsAny(plainText(l.runs()), "12") {
+			t.Errorf("TOC line %q contains a footnote number", plainText(l.runs()))
+		}
+	}
+}
