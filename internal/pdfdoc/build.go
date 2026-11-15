@@ -400,7 +400,7 @@ func (b *builder) block(n ast.Node, indent float64, bar bool, marker *Marker, de
 		h := &Heading{
 			base:  base{before: t.HeadSpaceHi[lvl-1], after: t.HeadSpaceLo[lvl-1], keep: true},
 			Level: lvl, Runs: runs, Plain: plainText(runs),
-			Opts: t.textOpts(), Rule: lvl <= 2, T: t,
+			Opts: t.textOpts(), Rule: lvl <= t.HeadingRules, T: t,
 		}
 		b.push(h, indent, bar, marker)
 

@@ -157,3 +157,22 @@ func TestMarkerMissingGlyphWarns(t *testing.T) {
 		t.Errorf("warnings = %v, want one for U+4E2D", b.warn)
 	}
 }
+
+// typography.heading_rules = n draws the hairline under H1..Hn, and 0 disables
+// it. Body headings used to hardcode H1/H2 and ignore the setting.
+func TestHeadingRulesSetting(t *testing.T) {
+	src := "# h1\n\n## h2\n\n### h3\n\n#### h4\n"
+	for _, n := range []int{0, 1, 2, 3} {
+		th := theme(t, func(c *config.Config) { c.Type.HeadingRules = n })
+		d := parse(t, src, th)
+		for _, it := range d.Items {
+			h, ok := it.B.(*Heading)
+			if !ok {
+				continue
+			}
+			if want := h.Level <= n; h.Rule != want {
+				t.Errorf("heading_rules=%d: H%d Rule=%v, want %v", n, h.Level, h.Rule, want)
+			}
+		}
+	}
+}
