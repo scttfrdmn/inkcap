@@ -173,3 +173,52 @@ func loadTestImage(t *testing.T, path string) image.Image {
 	}
 	return img
 }
+
+// A figure taller than the page is scaled down, aspect preserved, so that it
+// and its caption fit the text area instead of bleeding past the bottom.
+func TestTallFigureFitsPage(t *testing.T) {
+	th := theme(t, nil)
+	png := writePNG(t, 300, 3000) // 50.8 × 508 mm at 150 dpi
+	svg := writeSVG(t, `<svg xmlns="http://www.w3.org/2000/svg" width="100mm" height="900mm"><rect width="100mm" height="900mm" fill="#3498db"/></svg>`)
+
+	for name, src := range map[string]string{
+		"png":         "![](" + png + ")\n",
+		"png+caption": "![A tall figure with a caption](" + png + ")\n",
+		"svg":         "Lead paragraph.\n\n![tall vector](" + svg + ")\n",
+	} {
+		d := parse(t, src, th)
+		var im *Image
+		for _, it := range d.Items {
+			if v, ok := it.B.(*Image); ok {
+				im = v
+			}
+		}
+		if im == nil {
+			t.Fatalf("%s: no figure built", name)
+		}
+		w := th.ContentW()
+		iw, ih := im.dims(w)
+		var srcAspect float64
+		if im.SVG != nil {
+			sw, sh := im.SVG.Size()
+			srcAspect = sw / sh
+		} else {
+			b := im.Img.Bounds()
+			srcAspect = float64(b.Dx()) / float64(b.Dy())
+		}
+		if a := iw / ih; a < srcAspect*0.999 || a > srcAspect*1.001 {
+			t.Errorf("%s: aspect %.4f, want %.4f", name, a, srcAspect)
+		}
+		if h := im.Measure(w); h > th.ContentH()+0.01 {
+			t.Errorf("%s: figure measures %.1fmm, taller than the %.1fmm text area", name, h, th.ContentH())
+		}
+		bottom := th.PageH - th.MarginBottom
+		for i, p := range d.paginate(d.Items) {
+			for _, pl := range p.Items {
+				if end := pl.Y + pl.H; end > bottom+0.01 {
+					t.Errorf("%s: page %d block ends at %.1fmm, past %.1fmm", name, i+1, end, bottom)
+				}
+			}
+		}
+	}
+}

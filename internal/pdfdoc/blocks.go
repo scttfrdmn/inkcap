@@ -475,17 +475,30 @@ func (im *Image) dims(w float64) (iw, ih float64) {
 		ih *= w / iw
 		iw = w
 	}
+	// Figures never split, so one taller than the page would be drawn past the
+	// bottom margin. Shrink it (aspect preserved) so figure + caption fit.
+	if maxH := im.T.ContentH() - im.captionH(w); maxH > 0 && ih > maxH {
+		iw *= maxH / ih
+		ih = maxH
+	}
 	return
+}
+
+// captionH is the height the caption adds below the figure, gap included.
+func (im *Image) captionH(w float64) float64 {
+	if len(im.Caption) == 0 {
+		return 0
+	}
+	t := buildText(im.Caption, w, canvas.Center, im.T.textOpts())
+	if t == nil {
+		return 0
+	}
+	return pt(4) + t.Height
 }
 
 func (im *Image) Measure(w float64) float64 {
 	_, ih := im.dims(w)
-	if len(im.Caption) > 0 {
-		if t := buildText(im.Caption, w, canvas.Center, im.T.textOpts()); t != nil {
-			ih += pt(4) + t.Height
-		}
-	}
-	return ih
+	return ih + im.captionH(w)
 }
 
 func (im *Image) Split(w, avail float64) (Block, Block, bool) { return atomicSplit(im, w, avail) }
