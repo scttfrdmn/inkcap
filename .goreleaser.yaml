@@ -51,6 +51,9 @@ nfpms:
       - deb
       - rpm
     bindir: /usr/bin
+    # Version-less file names, so releases/latest/download/<name> in the README
+    # stays valid across releases. The package metadata still carries the version.
+    file_name_template: "{{ .PackageName }}_{{ .Os }}_{{ .Arch }}"
 
 # Classic per-arch docker builds + a manifest. dockers_v2 was tried but its
 # multi-platform build context did not stage the binary for the COPY, so the
