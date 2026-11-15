@@ -6,6 +6,8 @@ All notable changes to inkcap. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-11-15
+
 ### Fixed
 - Paragraphs whose lines end in hard breaks (poetry, addresses, `<br>`) now
   split across pages instead of running past the bottom margin (#31).
@@ -69,7 +71,8 @@ First release.
 - List bullet glyph follows nesting depth, not the millimetre inset (#5).
 - Definition lists render instead of flattening into paragraphs (#6).
 
-[Unreleased]: https://github.com/scttfrdmn/inkcap/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/scttfrdmn/inkcap/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/scttfrdmn/inkcap/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/scttfrdmn/inkcap/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/scttfrdmn/inkcap/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/scttfrdmn/inkcap/releases/tag/v0.1.0
