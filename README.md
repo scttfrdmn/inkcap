@@ -30,8 +30,9 @@ inkcap version                     # print version, Go version, platform
 ## Install
 
 ```sh
-# Homebrew (macOS / Linux)
-brew install scttfrdmn/tap/inkcap
+# Homebrew (macOS / Linux) — Homebrew 7+ requires trusting third-party taps
+brew tap scttfrdmn/tap && brew trust scttfrdmn/tap
+brew install --cask inkcap
 
 # Scoop (Windows)
 scoop bucket add scttfrdmn https://github.com/scttfrdmn/scoop-bucket
