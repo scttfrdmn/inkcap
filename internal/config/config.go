@@ -155,28 +155,54 @@ func Path() string {
 }
 
 // Load reads path (or the default location) over the built-in defaults. A
-// missing file is not an error.
-func Load(path string) (Config, error) {
+// missing file is not an error. The returned warnings name keys in the file
+// that inkcap doesn't recognise (usually typos), which would otherwise be
+// silently ignored.
+func Load(path string) (Config, []string, error) {
 	c := Default()
 	if path == "" {
 		path = Path()
 	}
 	if path == "" {
-		return c, nil
+		return c, nil, nil
 	}
 	b, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
-		return c, nil
+		return c, nil, nil
 	}
 	if err != nil {
-		return c, err
+		return c, nil, err
 	}
-	if err := toml.Unmarshal(b, &c); err != nil {
-		return c, fmt.Errorf("%s: %w", path, err)
+	md, err := toml.Decode(string(b), &c)
+	if err != nil {
+		return c, nil, fmt.Errorf("%s: %w", path, err)
 	}
-	return c, c.Validate()
+	var warn []string
+	for _, k := range md.Undecoded() {
+		warn = append(warn, fmt.Sprintf("%s: unknown config key %q", path, k.String()))
+	}
+	if err := c.Validate(); err != nil {
+		return c, warn, fmt.Errorf("%s: %w", path, err)
+	}
+	return c, warn, nil
 }
 
+// numField pairs a config key with its numeric value, for range checks.
+type numField struct {
+	key string
+	v   float64
+}
+
+// paperSizes maps the named page sizes to width × height in mm.
+var paperSizes = map[string][2]float64{
+	"a4":     {210, 297},
+	"a5":     {148, 210},
+	"letter": {215.9, 279.4},
+	"legal":  {215.9, 355.6},
+}
+
+// Validate rejects values that would otherwise be silently replaced or would
+// produce a broken layout. Every message names the offending key.
 func (c Config) Validate() error {
 	switch c.Document.Footnotes {
 	case "page", "end", "none", "":
@@ -188,24 +214,105 @@ func (c Config) Validate() error {
 	default:
 		return fmt.Errorf("html: want strip|drop, got %q", c.Document.HTML)
 	}
+
+	// Page geometry.
+	if (c.Page.Width > 0) != (c.Page.Height > 0) || c.Page.Width < 0 || c.Page.Height < 0 {
+		return fmt.Errorf("page: width and height must both be set (> 0) or both left unset, got %v × %v", c.Page.Width, c.Page.Height)
+	}
+	if c.Page.Width == 0 {
+		if _, ok := paperSizes[strings.ToLower(c.Page.Size)]; !ok && c.Page.Size != "" {
+			return fmt.Errorf("page.size: want a4|a5|letter|legal, got %q", c.Page.Size)
+		}
+	}
+	for _, m := range []numField{
+		{"margin_top", c.Page.Top}, {"margin_bottom", c.Page.Bottom},
+		{"margin_left", c.Page.Left}, {"margin_right", c.Page.Right},
+	} {
+		if m.v < 0 {
+			return fmt.Errorf("page.%s: must be >= 0, got %v", m.key, m.v)
+		}
+	}
+	w, h := c.PageSize()
+	if c.Page.Left+c.Page.Right >= w {
+		return fmt.Errorf("page: left + right margins (%v mm) leave no room on a %v mm wide page", c.Page.Left+c.Page.Right, w)
+	}
+	if c.Page.Top+c.Page.Bottom >= h {
+		return fmt.Errorf("page: top + bottom margins (%v mm) leave no room on a %v mm tall page", c.Page.Top+c.Page.Bottom, h)
+	}
+
+	// Typography.
+	for _, s := range []numField{
+		{"body_size", c.Type.BodySize}, {"code_size", c.Type.CodeSize}, {"small_size", c.Type.SmallSize},
+	} {
+		if s.v <= 0 {
+			return fmt.Errorf("typography.%s: must be > 0, got %v", s.key, s.v)
+		}
+	}
+	for i, v := range c.Type.HeadingSizes {
+		if v <= 0 {
+			return fmt.Errorf("typography.heading_sizes[%d] (H%d): must be > 0, got %v", i, i+1, v)
+		}
+	}
+	if c.Type.LineHeight < 0 {
+		return fmt.Errorf("typography.line_height: must be >= 0, got %v", c.Type.LineHeight)
+	}
+	if c.Type.Orphans < 0 || c.Type.Widows < 0 {
+		return fmt.Errorf("typography: orphans and widows must be >= 0, got %d and %d", c.Type.Orphans, c.Type.Widows)
+	}
+	if c.Type.HeadingRules < 0 || c.Type.HeadingRules > 6 {
+		return fmt.Errorf("typography.heading_rules: want 0..6, got %d", c.Type.HeadingRules)
+	}
+
+	// Spacing.
+	sp := []numField{
+		{"paragraph", c.Spacing.Paragraph}, {"block", c.Spacing.Block},
+		{"indent", c.Spacing.Indent}, {"code_padding", c.Spacing.CodePadding},
+	}
+	for i := range c.Spacing.HeadingAbove {
+		sp = append(sp,
+			numField{fmt.Sprintf("heading_above[%d]", i), c.Spacing.HeadingAbove[i]},
+			numField{fmt.Sprintf("heading_below[%d]", i), c.Spacing.HeadingBelow[i]})
+	}
+	for _, s := range sp {
+		if s.v < 0 {
+			return fmt.Errorf("spacing.%s: must be >= 0, got %v", s.key, s.v)
+		}
+	}
+
+	// Colours.
+	for _, col := range []struct{ key, v string }{
+		{"fg", c.Colors.FG}, {"muted", c.Colors.Muted}, {"link", c.Colors.Link},
+		{"rule", c.Colors.Rule}, {"code_bg", c.Colors.CodeBG}, {"quote_bar", c.Colors.QuoteBar},
+		{"table_head_bg", c.Colors.TableHeadBG}, {"table_rule", c.Colors.TableRule},
+	} {
+		if _, err := Hex(col.v); err != nil {
+			return fmt.Errorf("colors.%s: want #rrggbb or #rrggbbaa, got %q", col.key, col.v)
+		}
+	}
+
+	// Code and document.
+	if c.Code.TabWidth < 0 {
+		return fmt.Errorf("code.tab_width: must be >= 0, got %d", c.Code.TabWidth)
+	}
+	if c.Document.TOCDepth < 1 || c.Document.TOCDepth > 6 {
+		return fmt.Errorf("document.toc_depth: want 1..6, got %d", c.Document.TOCDepth)
+	}
+	if c.Document.ImageDPI < 0 {
+		return fmt.Errorf("document.image_dpi: must be >= 0 (0 = default 150), got %v", c.Document.ImageDPI)
+	}
 	return nil
 }
 
-// PageSize resolves the named paper size, or the explicit override.
+// PageSize resolves the named paper size, or the explicit override. An empty
+// size means A4; Validate rejects unknown names.
 func (c Config) PageSize() (w, h float64) {
 	if c.Page.Width > 0 && c.Page.Height > 0 {
 		return c.Page.Width, c.Page.Height
 	}
-	switch strings.ToLower(c.Page.Size) {
-	case "letter":
-		return 215.9, 279.4
-	case "legal":
-		return 215.9, 355.6
-	case "a5":
-		return 148, 210
-	default:
-		return 210, 297
+	if s, ok := paperSizes[strings.ToLower(c.Page.Size)]; ok {
+		return s[0], s[1]
 	}
+	return 210, 297
 }
 
 // Hex parses "#rrggbb" (or "#rrggbbaa").

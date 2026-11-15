@@ -66,7 +66,9 @@ Prebuilt binaries, `.deb`/`.rpm` packages, and checksums are on the
 `~/.inkcap/config.toml`, created by `inkcap init` with every default written
 out and annotated. Override the location with `-config` or `$INKCAP_CONFIG`.
 Flags beat the file; the file beats the built-in defaults. A missing file is
-not an error.
+not an error. Unknown keys (usually typos) are reported as warnings; invalid
+values (a bad colour, an unknown paper size, a negative length) are errors that
+name the key.
 
 Font sizes are in points (canvas' `Face()` wants points); every other length is
 in millimetres. Fonts default to embedded IBM Plex Serif/Mono; point `[fonts.*]`

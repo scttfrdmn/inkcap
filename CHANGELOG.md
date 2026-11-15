@@ -23,7 +23,12 @@ All notable changes to inkcap. The format follows
 - `.deb`/`.rpm` assets have version-less names, so the README's
   `releases/latest/download/…` links keep working (#40).
 
+- Config mistakes are no longer silent: unknown keys are warned about, and bad
+  colours, unknown paper sizes and out-of-range values are errors naming the
+  key. `-margin 0` now sets zero margins (#38).
+
 ### Changed
+- `config.Load` also returns warnings (internal API) (#38).
 - Homebrew cask uses `install_steps`; install with
   `brew tap scttfrdmn/tap && brew trust scttfrdmn/tap` first (Homebrew 7) (#41).
 

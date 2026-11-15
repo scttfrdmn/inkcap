@@ -56,8 +56,15 @@ func main() {
 	}
 	in := flag.Arg(0)
 
-	cfg, err := config.Load(*cfgPath)
+	cfg, cfgWarn, err := config.Load(*cfgPath)
 	check(err)
+	if !*quiet {
+		for _, w := range cfgWarn {
+			fmt.Fprintln(os.Stderr, "inkcap: warning:", w)
+		}
+	}
+	set := map[string]bool{}
+	flag.Visit(func(f *flag.Flag) { set[f.Name] = true })
 
 	// Flags win over the file.
 	if *paper != "" {
@@ -67,7 +74,7 @@ func main() {
 	if *style != "" {
 		cfg.Code.Style = *style
 	}
-	if *margin > 0 {
+	if set["margin"] { // explicit, so -margin 0 means zero margins
 		cfg.Page.Top, cfg.Page.Bottom = *margin, *margin
 		cfg.Page.Left, cfg.Page.Right = *margin, *margin
 	}
