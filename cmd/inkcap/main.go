@@ -6,11 +6,14 @@
 //	inkcap notes.md                 # -> notes.pdf
 //	inkcap init                     # write ~/.inkcap/config.toml
 //	inkcap -toc -style nord doc.md
+//	inkcap doc.md -toc              # flags may follow the file
+//	cat doc.md | inkcap - > doc.pdf # stdin to stdout
 package main
 
 import (
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,41 +33,81 @@ func main() {
 			return
 		}
 	}
+	os.Exit(run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
+}
 
-	var (
-		out     = flag.String("o", "", "output file (default: input with .pdf)")
-		title   = flag.String("title", "", "document title (default: first H1)")
-		cfgPath = flag.String("config", "", "config file (default: ~/.inkcap/config.toml)")
-		paper   = flag.String("paper", "", "override page size: a4 | letter | legal | a5")
-		style   = flag.String("style", "", "override chroma syntax style")
-		margin  = flag.Float64("margin", 0, "override all margins, in mm")
-		toc     = flag.Bool("toc", false, "generate a table of contents")
-		notes   = flag.String("footnotes", "", "override footnote placement: page | end | none")
-		nums    = flag.Bool("linenumbers", false, "number lines in code blocks")
-		quiet   = flag.Bool("q", false, "suppress warnings")
-	)
-	flag.Usage = func() {
-		fmt.Fprint(os.Stderr, "usage: inkcap [flags] file.md\n       inkcap init [-force]\n       inkcap version\n\n")
-		fmt.Fprintf(os.Stderr, "config: %s\n\n", config.Path())
-		flag.PrintDefaults()
-	}
-	flag.Parse()
-
-	if flag.NArg() != 1 {
-		flag.Usage()
-		os.Exit(2)
-	}
-	in := flag.Arg(0)
-
-	cfg, cfgWarn, err := config.Load(*cfgPath)
-	check(err)
-	if !*quiet {
-		for _, w := range cfgWarn {
-			fmt.Fprintln(os.Stderr, "inkcap: warning:", w)
+// parseInterspersed parses flags that may appear before or after the
+// positional arguments (inkcap doc.md -toc), which the flag package alone
+// does not allow. Everything after a literal "--" is positional.
+func parseInterspersed(fs *flag.FlagSet, args []string) ([]string, error) {
+	var pos []string
+	for {
+		if err := fs.Parse(args); err != nil {
+			return nil, err
 		}
+		rest := fs.Args()
+		if consumed := len(args) - len(rest); consumed > 0 && args[consumed-1] == "--" {
+			return append(pos, rest...), nil
+		}
+		if len(rest) == 0 {
+			return pos, nil
+		}
+		pos = append(pos, rest[0])
+		args = rest[1:]
+	}
+}
+
+// run is the converter, separated from main so it can be tested. It returns
+// the process exit code: 0 on success, 1 on failure, 2 on a usage error.
+func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("inkcap", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	var (
+		out     = fs.String("o", "", "output file, or - for stdout (default: input with .pdf; stdout when reading stdin)")
+		title   = fs.String("title", "", "document title (default: first H1)")
+		cfgPath = fs.String("config", "", "config file (default: ~/.inkcap/config.toml)")
+		paper   = fs.String("paper", "", "override page size: a4 | letter | legal | a5")
+		style   = fs.String("style", "", "override chroma syntax style")
+		margin  = fs.Float64("margin", 0, "override all margins, in mm")
+		toc     = fs.Bool("toc", false, "generate a table of contents")
+		notes   = fs.String("footnotes", "", "override footnote placement: page | end | none")
+		nums    = fs.Bool("linenumbers", false, "number lines in code blocks")
+		quiet   = fs.Bool("q", false, "suppress warnings")
+	)
+	fs.Usage = func() {
+		fmt.Fprint(stderr, "usage: inkcap [flags] file.md   (use - to read stdin)\n       inkcap init [-force]\n       inkcap version\n\n")
+		fmt.Fprintf(stderr, "config: %s\n\n", config.Path())
+		fs.PrintDefaults()
+	}
+	pos, err := parseInterspersed(fs, args)
+	if err != nil {
+		return 2 // flag has already printed the error and usage
+	}
+	if len(pos) != 1 {
+		fs.Usage()
+		return 2
 	}
 	set := map[string]bool{}
-	flag.Visit(func(f *flag.Flag) { set[f.Name] = true })
+	fs.Visit(func(f *flag.Flag) { set[f.Name] = true })
+
+	warn := func(ws []string) {
+		if *quiet {
+			return
+		}
+		for _, w := range ws {
+			fmt.Fprintln(stderr, "inkcap: warning:", w)
+		}
+	}
+	fail := func(err error) int {
+		fmt.Fprintln(stderr, "inkcap:", err)
+		return 1
+	}
+
+	cfg, cfgWarn, err := config.Load(*cfgPath)
+	if err != nil {
+		return fail(err)
+	}
+	warn(cfgWarn)
 
 	// Flags win over the file.
 	if *paper != "" {
@@ -87,32 +130,99 @@ func main() {
 	if *nums {
 		cfg.Code.LineNumbers = true
 	}
-	check(cfg.Validate())
+	if err := cfg.Validate(); err != nil {
+		return fail(err)
+	}
 
-	theme, err := pdfdoc.New(cfg)
-	check(err)
-
-	src, err := os.ReadFile(in)
-	check(err)
-
-	doc, err := pdfdoc.Parse(src, filepath.Dir(in), theme)
-	check(err)
-
+	// Resolve input and output. "-" means stdin / stdout; reading stdin with
+	// no -o writes the PDF to stdout, so inkcap works in a pipe.
+	in := pos[0]
+	fromStdin := in == "-"
 	dst := *out
 	if dst == "" {
-		dst = strings.TrimSuffix(in, filepath.Ext(in)) + ".pdf"
-	}
-	f, err := os.Create(dst)
-	check(err)
-	check(doc.Render(f, *title))
-	check(f.Close())
-
-	if !*quiet {
-		for _, w := range doc.Warn {
-			fmt.Fprintln(os.Stderr, "inkcap: warning:", w)
+		if fromStdin {
+			dst = "-"
+		} else {
+			dst = strings.TrimSuffix(in, filepath.Ext(in)) + ".pdf"
 		}
 	}
-	fmt.Println(dst)
+	if !fromStdin && dst != "-" && samePath(in, dst) {
+		return fail(fmt.Errorf("output %s would overwrite the input; use -o to pick another name", dst))
+	}
+
+	theme, err := pdfdoc.New(cfg)
+	if err != nil {
+		return fail(err)
+	}
+	var src []byte
+	baseDir := "."
+	if fromStdin {
+		src, err = io.ReadAll(stdin)
+	} else {
+		src, err = os.ReadFile(in)
+		baseDir = filepath.Dir(in)
+	}
+	if err != nil {
+		return fail(err)
+	}
+	doc, err := pdfdoc.Parse(src, baseDir, theme)
+	if err != nil {
+		return fail(err)
+	}
+
+	if dst == "-" {
+		if err := doc.Render(stdout, *title); err != nil {
+			return fail(err)
+		}
+	} else {
+		if err := writeAtomic(dst, func(w io.Writer) error { return doc.Render(w, *title) }); err != nil {
+			return fail(err)
+		}
+	}
+	warn(doc.Warn)
+	if dst != "-" {
+		fmt.Fprintln(stdout, dst)
+	}
+	return 0
+}
+
+// samePath reports whether a and b name the same file: the same file on disk
+// if both exist, otherwise the same cleaned absolute path.
+func samePath(a, b string) bool {
+	if fa, err := os.Stat(a); err == nil {
+		if fb, err := os.Stat(b); err == nil {
+			return os.SameFile(fa, fb)
+		}
+	}
+	aa, err1 := filepath.Abs(a)
+	bb, err2 := filepath.Abs(b)
+	return err1 == nil && err2 == nil && aa == bb
+}
+
+// writeAtomic renders into a temporary file next to dst and renames it over
+// dst only on success, so a failed render never leaves a truncated PDF behind
+// (or destroys a good one from an earlier run).
+func writeAtomic(dst string, render func(io.Writer) error) (err error) {
+	f, err := os.CreateTemp(filepath.Dir(dst), "."+filepath.Base(dst)+".*.tmp")
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			f.Close()
+			os.Remove(f.Name())
+		}
+	}()
+	if err = render(f); err != nil {
+		return err
+	}
+	if err = f.Close(); err != nil {
+		return err
+	}
+	if err = os.Chmod(f.Name(), 0o644); err != nil {
+		return err
+	}
+	return os.Rename(f.Name(), dst)
 }
 
 func initCmd(args []string) {

@@ -24,6 +24,8 @@ full PDF is [`example.pdf`](example.pdf).*
 inkcap notes.md                    # -> notes.pdf
 inkcap init                        # write ~/.inkcap/config.toml
 inkcap -toc -style nord doc.md
+inkcap doc.md -toc -o out.pdf      # flags may also follow the file
+cat doc.md | inkcap - > doc.pdf    # - reads stdin; writes stdout unless -o
 inkcap version                     # print version, Go version, platform
 ```
 
@@ -164,7 +166,7 @@ Flags override the config file for a single run.
 
 | Flag | Config equivalent |
 |---|---|
-| `-o <file>` | output path (default: input with `.pdf`) |
+| `-o <file>` | output path, or `-` for stdout (default: input with `.pdf`; stdout when the input is `-`). Written atomically, and never over the input. |
 | `-title <s>` | document title (default: first H1) |
 | `-config <file>` | config location (also `$INKCAP_CONFIG`) |
 | `-paper <size>` | `page.size` |

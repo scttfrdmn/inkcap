@@ -27,7 +27,14 @@ All notable changes to inkcap. The format follows
   colours, unknown paper sizes and out-of-range values are errors naming the
   key. `-margin 0` now sets zero margins (#38).
 
+### Added
+- `-` reads Markdown from stdin and, with no `-o`, writes the PDF to stdout
+  (`-o -` also writes stdout) (#39).
+
 ### Changed
+- Flags may follow the file name (`inkcap doc.md -toc`); `--` ends flags (#39).
+- The PDF is written to a temp file and renamed into place, so a failed
+  render leaves no truncated file; inkcap refuses to overwrite its input (#39).
 - `config.Load` also returns warnings (internal API) (#38).
 - Homebrew cask uses `install_steps`; install with
   `brew tap scttfrdmn/tap && brew trust scttfrdmn/tap` first (Homebrew 7) (#41).
