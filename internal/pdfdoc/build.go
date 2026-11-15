@@ -7,12 +7,14 @@ import (
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/alecthomas/chroma/v2"
 	"github.com/alecthomas/chroma/v2/lexers"
@@ -46,7 +48,9 @@ type builder struct {
 	body    map[int]Note
 	title   string
 	warn    []string
-	missing map[rune]bool // runes already warned about, deduped
+	missing map[rune]bool   // runes already warned about, deduped
+	ids     map[string]bool // heading anchors handed out so far
+	targets []string        // "#..." link targets, checked once all ids exist
 }
 
 // Parse converts markdown source into a block flow.
@@ -65,6 +69,7 @@ func Parse(src []byte, baseDir string, t *Theme) (*Doc, error) {
 		body:  map[int]Note{},
 	}
 	b.blocks(root, 0, false, nil, 0)
+	b.checkTargets()
 	return &Doc{
 		Items: b.items, Links: b.links, Notes: b.notes, Body: b.body,
 		Title: b.title, Warn: b.warn, T: t,
@@ -310,6 +315,14 @@ func (b *builder) inline(n ast.Node, s style, out *[]Run) {
 		case *ast.Link:
 			ls := s
 			ls.link = string(v.Destination)
+			if strings.HasPrefix(ls.link, "#") {
+				// In-document link: canvas turns "#name" into a GoTo to the
+				// anchor of that name. Match the decoded form of the slug.
+				if u, err := url.PathUnescape(ls.link); err == nil {
+					ls.link = u
+				}
+				b.targets = append(b.targets, ls.link[1:])
+			}
 			b.inline(v, ls, out)
 		case *ast.AutoLink:
 			ls := s
@@ -402,7 +415,7 @@ func (b *builder) block(n ast.Node, indent float64, bar bool, marker *Marker, de
 		}
 		h := &Heading{
 			base:  base{before: t.HeadSpaceHi[lvl-1], after: t.HeadSpaceLo[lvl-1], keep: true},
-			Level: lvl, Runs: runs, Plain: plain,
+			Level: lvl, Runs: runs, Plain: plain, ID: b.anchorID(plain),
 			Opts: t.textOpts(), Rule: lvl <= t.HeadingRules, T: t,
 		}
 		b.push(h, indent, bar, marker)
@@ -536,6 +549,44 @@ func (b *builder) block(n ast.Node, indent float64, bar bool, marker *Marker, de
 
 	default:
 		b.blocks(n, indent, bar, marker, depth)
+	}
+}
+
+// anchorID returns the GitHub-style slug for a heading, so links written for
+// GitHub's renderer ([x](#getting-started)) resolve in the PDF too: lower-case,
+// punctuation dropped, spaces to hyphens, and -1, -2, ... on repeats.
+func (b *builder) anchorID(plain string) string {
+	var sb strings.Builder
+	for _, r := range strings.ToLower(strings.TrimSpace(plain)) {
+		switch {
+		case unicode.IsLetter(r), unicode.IsDigit(r), r == '-', r == '_':
+			sb.WriteRune(r)
+		case r == ' ':
+			sb.WriteRune('-')
+		}
+	}
+	base := sb.String()
+	if b.ids == nil {
+		b.ids = map[string]bool{}
+	}
+	id := base
+	for n := 1; b.ids[id]; n++ {
+		id = base + "-" + strconv.Itoa(n)
+	}
+	b.ids[id] = true
+	return id
+}
+
+// checkTargets warns, once per name, about "#name" links with no heading of
+// that name: in the PDF they would silently go nowhere.
+func (b *builder) checkTargets() {
+	seen := map[string]bool{}
+	for _, name := range b.targets {
+		if b.ids[name] || seen[name] {
+			continue
+		}
+		seen[name] = true
+		b.warn = append(b.warn, fmt.Sprintf("link to #%s: no heading has that anchor", name))
 	}
 }
 

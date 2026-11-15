@@ -195,6 +195,7 @@ func (d *Doc) buildTOC(pages []Page) []Item {
 					Level: h.Level,
 					Runs:  withoutRefs(h.Runs, d.Notes),
 					Page:  i + 1,
+					ID:    h.ID,
 					T:     t,
 				},
 				Indent: float64(h.Level-1) * (t.IndentStep * 0.7),

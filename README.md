@@ -253,6 +253,14 @@ splice the TOC in, paginate again. The TOC's *height* doesn't depend on the
 numbers it contains, so the second pass is stable; `TestTOCConverges` asserts it
 settles and that every entry's number matches where the heading actually landed.
 
+## Links
+
+External links become URI annotations. Every heading also gets a GitHub-style
+anchor (`## Getting Started` → `#getting-started`, repeats get `-1`, `-2`…), so
+in-document links written for GitHub — `[setup](#getting-started)` — jump to the
+heading in the PDF, and every table-of-contents entry is a link to its heading.
+A `#name` link with no matching heading is reported on stderr.
+
 ## Footnotes
 
 `footnotes = "page" | "end" | "none"`. Page mode reserves the footnote area

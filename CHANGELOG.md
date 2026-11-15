@@ -28,6 +28,9 @@ All notable changes to inkcap. The format follows
   key. `-margin 0` now sets zero margins (#38).
 
 ### Added
+- In-document links: headings get GitHub-style anchors, `[x](#anchor)` jumps to
+  the heading, table-of-contents entries are clickable, and links to a missing
+  anchor are reported (#37).
 - `-` reads Markdown from stdin and, with no `-o`, writes the PDF to stdout
   (`-o -` also writes stdout) (#39).
 

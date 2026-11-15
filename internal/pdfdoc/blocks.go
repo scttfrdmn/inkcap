@@ -216,7 +216,8 @@ type Heading struct {
 	Runs  []Run
 	Plain string
 	Opts  *canvas.TextOptions
-	Rule  bool // hairline under the heading (H1/H2)
+	Rule  bool   // hairline under the heading (H1/H2)
+	ID    string // anchor name, the target of "#ID" links and TOC entries
 	T     *Theme
 
 	fromTOC bool // synthesised for the contents page; never listed in itself
@@ -247,6 +248,7 @@ func (h *Heading) Draw(r *Rctx, x, y, w float64) {
 	t := h.text(w)
 	drawRuns(r, t, x, y)
 	r.Outline(h.Plain, h.Level-1, y)
+	r.Anchor(h.ID, x, y)
 	if h.Rule && t != nil {
 		ry := y + t.Height + pt(3)
 		r.C.SetStrokeColor(h.T.Rule)
@@ -563,6 +565,7 @@ type TocLine struct {
 	Level int
 	Runs  []Run
 	Page  int
+	ID    string // the heading's anchor; the whole line links to it
 	T     *Theme
 }
 
@@ -602,6 +605,9 @@ func (l *TocLine) Draw(r *Rctx, x, y, w float64) {
 		return
 	}
 	r.C.DrawText(x, y, t)
+	if l.ID != "" {
+		r.Link("#"+l.ID, x, y, w, t.Height)
+	}
 
 	num := strconv.Itoa(l.Page)
 	f := l.face()

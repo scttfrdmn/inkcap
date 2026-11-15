@@ -41,6 +41,16 @@ func (r *Rctx) Link(uri string, x, yTop, w, h float64) {
 	r.P.AddLink(uri, canvas.Rect{X0: x, Y0: y, X1: x + w, Y1: y + h})
 }
 
+// Anchor registers a named destination at a y-down page coordinate, the
+// target of a "#name" link. It scrolls there without changing the zoom.
+func (r *Rctx) Anchor(name string, x, yTop float64) {
+	if r.P == nil || name == "" {
+		return
+	}
+	y := r.T.PageH - yTop
+	r.P.AddAnchor(name, canvas.Rect{X0: x, Y0: y, X1: x, Y1: y})
+}
+
 // Outline registers a PDF bookmark at a y-down page coordinate.
 func (r *Rctx) Outline(name string, level int, yTop float64) {
 	if r.P == nil {
