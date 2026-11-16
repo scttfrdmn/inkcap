@@ -41,11 +41,11 @@ func TestFrontMatterParsed(t *testing.T) {
 // block, are not front matter and must be left untouched.
 func TestNotFrontMatter(t *testing.T) {
 	for name, src := range map[string]string{
-		"rule then blank":  "---\n\n# Heading\n\nText\n\n---\n",
-		"rule then prose":  "---\nJust a paragraph after a rule.\n---\n",
-		"unclosed":         "---\ntitle: never closed\n\n# Body\n",
-		"rule mid-doc":     "# Title\n\n---\ntitle: x\n---\n",
-		"too short":        "---\n",
+		"rule then blank": "---\n\n# Heading\n\nText\n\n---\n",
+		"rule then prose": "---\nJust a paragraph after a rule.\n---\n",
+		"unclosed":        "---\ntitle: never closed\n\n# Body\n",
+		"rule mid-doc":    "# Title\n\n---\ntitle: x\n---\n",
+		"too short":       "---\n",
 	} {
 		meta, body, err := splitFrontMatter([]byte(src))
 		if err != nil || meta != (Meta{}) || string(body) != src {
