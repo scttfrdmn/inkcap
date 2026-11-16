@@ -437,3 +437,49 @@ func TestSmartPunctuation(t *testing.T) {
 		t.Errorf("smart punctuation:\n got %q\nwant %q", on, want)
 	}
 }
+
+// number_sections prefixes headings with hierarchical numbers; anchors and
+// the document title stay unnumbered, and number_from leaves higher levels
+// (an H1 title) alone. A skipped level counts as 0.
+func TestSectionNumbers(t *testing.T) {
+	src := "# Title\n\n## Intro\n\n### Detail\n\n### More\n\n## Design\n\n#### Deep\n\n## End\n"
+	type h struct{ plain, id string }
+	heads := func(th *Theme) ([]h, string) {
+		d := parse(t, src, th)
+		var out []h
+		for _, it := range d.Items {
+			if v, ok := it.B.(*Heading); ok {
+				out = append(out, h{v.Plain, v.ID})
+			}
+		}
+		return out, d.Title
+	}
+	th := theme(t, func(c *config.Config) { c.Document.NumberSects = true; c.Document.NumberFrom = 2 })
+	for _, r := range numGap {
+		if f := th.Text.Face(th.HeadSize[1], th.FG); !covers(f, r) {
+			t.Fatalf("heading face lacks %U, used after section numbers", r)
+		}
+	}
+	got, title := heads(th)
+	want := []h{{"Title", "title"}, {"1" + numGap + "Intro", "intro"}, {"1.1" + numGap + "Detail", "detail"}, {"1.2" + numGap + "More", "more"},
+		{"2" + numGap + "Design", "design"}, {"2.0.1" + numGap + "Deep", "deep"}, {"3" + numGap + "End", "end"}}
+	if len(got) != len(want) {
+		t.Fatalf("got %d headings, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("heading %d = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+	if title != "Title" {
+		t.Errorf("title = %q, want it unnumbered", title)
+	}
+	// number_from = 1 numbers the H1 too; off by default.
+	th = theme(t, func(c *config.Config) { c.Document.NumberSects = true })
+	if got, _ := heads(th); got[0].plain != "1"+numGap+"Title" || got[1].plain != "1.1"+numGap+"Intro" {
+		t.Errorf("number_from=1: %+v", got[:2])
+	}
+	if got, _ := heads(theme(t, nil)); got[1].plain != "Intro" {
+		t.Errorf("numbering on by default: %+v", got[1])
+	}
+}

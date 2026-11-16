@@ -75,6 +75,7 @@ type builder struct {
 	missing map[rune]bool                           // runes already warned about, deduped
 	quotes  int                                     // blockquotes seen, for Bar IDs
 	inTable bool                                    // building table cells: their widths are only known at layout
+	secs    [6]int                                  // section counters, for number_sections
 	ids     map[string]bool                         // heading anchors handed out so far
 	monoFB  map[*canvas.FontFace][]*canvas.FontFace // code fallback faces, per primary
 	targets []string                                // "#..." link targets, checked once all ids exist
@@ -631,6 +632,13 @@ func (b *builder) block(n ast.Node, indent float64, bars []Bar, marker *Marker, 
 		}
 		hs := style{size: t.HeadSize[lvl-1], weight: canvas.FontBold}
 		runs := b.runs(v, hs)
+		// The anchor and the document title come from the unnumbered text,
+		// so GitHub-style links keep working when numbering is on.
+		bare := strings.ReplaceAll(plainText(withoutRefs(runs, b.notes)), string(zwsp), "")
+		id := b.headingID(v, bare)
+		if num := b.sectionNumber(lvl); num != "" {
+			runs = append([]Run{b.run(hs, num+numGap)}, runs...)
+		}
 		// Footnote ref markers are superscript digits in the runs; they must
 		// not leak into the title, running header, outline or TOC.
 		plain := strings.ReplaceAll(plainText(withoutRefs(runs, b.notes)), string(zwsp), "")
@@ -638,11 +646,11 @@ func (b *builder) block(n ast.Node, indent float64, bars []Bar, marker *Marker, 
 			b.push(&PageBreak{}, indent, bars, nil)
 		}
 		if lvl == 1 && b.title == "" {
-			b.title = plain
+			b.title = bare
 		}
 		h := &Heading{
 			base:  base{before: t.HeadSpaceHi[lvl-1], after: t.HeadSpaceLo[lvl-1], keep: true},
-			Level: lvl, Runs: runs, Plain: plain, ID: b.headingID(v, plain),
+			Level: lvl, Runs: runs, Plain: plain, ID: id,
 			Opts: t.textOpts(), Rule: lvl <= t.HeadingRules, T: t,
 		}
 		b.push(h, indent, bars, marker)
@@ -819,6 +827,30 @@ func (b *builder) anchorID(plain string) string {
 	}
 	b.ids[id] = true
 	return id
+}
+
+// numGap separates a section number from its title: two no-break spaces, which
+// IBM Plex has (it lacks U+2002) and which keep the number with the title.
+const numGap = "\u00a0\u00a0"
+
+// sectionNumber advances the section counters for a heading at lvl and
+// returns its number ("2", "2.1", "2.1.3"), or "" when numbering is off or the
+// level is above number_from. A skipped level counts as 0, as in Pandoc.
+func (b *builder) sectionNumber(lvl int) string {
+	t := b.t
+	if !t.NumberSects || lvl < t.NumberFrom {
+		return ""
+	}
+	i := lvl - t.NumberFrom // index of this level among numbered levels
+	b.secs[i]++
+	for j := i + 1; j < len(b.secs); j++ {
+		b.secs[j] = 0
+	}
+	parts := make([]string, i+1)
+	for j := 0; j <= i; j++ {
+		parts[j] = strconv.Itoa(b.secs[j])
+	}
+	return strings.Join(parts, ".")
 }
 
 // headingID is the heading's explicit {#id} if it has one, else the

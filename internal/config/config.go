@@ -104,9 +104,11 @@ type Document struct {
 	PageNumbers   bool    `toml:"page_numbers"`
 	PageTotal     bool    `toml:"page_total"` // render "3 / 12"
 	RunningHeader bool    `toml:"running_header"`
-	H1NewPage     bool    `toml:"h1_new_page"` // start each H1 after the first on a new page
-	HTML          string  `toml:"html"`        // strip | drop
-	ImageDPI      float64 `toml:"image_dpi"`   // nominal resolution for figures; higher = smaller on the page
+	H1NewPage     bool    `toml:"h1_new_page"`     // start each H1 after the first on a new page
+	NumberSects   bool    `toml:"number_sections"` // prefix headings with 1, 1.1, 1.1.1 ...
+	NumberFrom    int     `toml:"number_from"`     // first numbered level; 2 leaves the H1 title unnumbered
+	HTML          string  `toml:"html"`            // strip | drop
+	ImageDPI      float64 `toml:"image_dpi"`       // nominal resolution for figures; higher = smaller on the page
 }
 
 // Default is the built-in configuration. Everything else is a delta on this.
@@ -138,7 +140,7 @@ func Default() Config {
 		Code: Code{Style: "github", TabWidth: 4},
 		Document: Document{
 			TOCDepth: 3, TOCTitle: "Contents",
-			Footnotes: "page", PageNumbers: true, RunningHeader: true,
+			Footnotes: "page", PageNumbers: true, RunningHeader: true, NumberFrom: 1,
 			HTML: "strip", ImageDPI: 150,
 		},
 	}
@@ -305,6 +307,9 @@ func (c Config) Validate() error {
 	if c.Document.TOCDepth < 1 || c.Document.TOCDepth > 6 {
 		return fmt.Errorf("document.toc_depth: want 1..6, got %d", c.Document.TOCDepth)
 	}
+	if c.Document.NumberFrom < 1 || c.Document.NumberFrom > 6 {
+		return fmt.Errorf("document.number_from: want 1..6, got %d", c.Document.NumberFrom)
+	}
 	if c.Document.ImageDPI < 0 {
 		return fmt.Errorf("document.image_dpi: must be >= 0 (0 = default 150), got %v", c.Document.ImageDPI)
 	}
@@ -412,6 +417,8 @@ page_numbers   = true
 page_total     = false    # render "3 / 12" instead of "3"
 running_header = true
 h1_new_page    = false    # start each top-level heading (after the first) on a new page
+number_sections = false   # prefix headings with 1, 1.1, 1.1.1 ...
+number_from    = 1        # first numbered heading level; 2 leaves an H1 title unnumbered
 html           = "strip"  # strip: keep the text, drop the tags. drop: discard.
 image_dpi      = 150      # nominal image resolution; raise to shrink figures
 

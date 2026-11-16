@@ -7,6 +7,9 @@ All notable changes to inkcap. The format follows
 ## [Unreleased]
 
 ### Added
+- Section numbering: `document.number_sections` prefixes headings with 1, 1.1,
+  1.1.1 (in the TOC and bookmarks too), and `number_from = 2` leaves an H1 title
+  unnumbered. Anchors keep the unnumbered slug (#79).
 - Page breaks: `<!-- pagebreak -->` or `\newpage` starts a new page (never a
   blank one), and `document.h1_new_page` breaks before every H1 after the
   first (#78).

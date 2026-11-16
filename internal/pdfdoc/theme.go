@@ -73,6 +73,8 @@ type Theme struct {
 	PageTotal     bool
 	RunningHeader bool
 	H1NewPage     bool
+	NumberSects   bool
+	NumberFrom    int
 	HTML          string
 }
 
@@ -213,6 +215,8 @@ func New(c config.Config) (*Theme, error) {
 		PageTotal:     c.Document.PageTotal,
 		RunningHeader: c.Document.RunningHeader,
 		H1NewPage:     c.Document.H1NewPage,
+		NumberSects:   c.Document.NumberSects,
+		NumberFrom:    c.Document.NumberFrom,
 		HTML:          c.Document.HTML,
 	}
 	if t.LineHeight <= 0 {
@@ -220,6 +224,9 @@ func New(c config.Config) (*Theme, error) {
 	}
 	if natural := t.Text.Face(t.BodySize, t.FG).Metrics().LineHeight / pt(t.BodySize); natural > 0 {
 		t.lineStretch = t.LineHeight/natural - 1
+	}
+	if t.NumberFrom < 1 {
+		t.NumberFrom = 1
 	}
 	if t.TabWidth <= 0 {
 		t.TabWidth = 4

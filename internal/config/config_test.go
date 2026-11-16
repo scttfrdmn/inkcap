@@ -59,6 +59,7 @@ func TestValidateRejects(t *testing.T) {
 		{"toc_depth 0", func(c *Config) { c.Document.TOCDepth = 0 }, "document.toc_depth"},
 		{"toc_depth 7", func(c *Config) { c.Document.TOCDepth = 7 }, "document.toc_depth"},
 		{"negative dpi", func(c *Config) { c.Document.ImageDPI = -1 }, "document.image_dpi"},
+		{"number_from 0", func(c *Config) { c.Document.NumberFrom = 0 }, "document.number_from"},
 		{"bad footnotes", func(c *Config) { c.Document.Footnotes = "side" }, "footnotes"},
 		{"bad html", func(c *Config) { c.Document.HTML = "render" }, "html"},
 	}

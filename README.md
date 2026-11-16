@@ -148,6 +148,8 @@ anything left blank.
 | `page_total` | `false` | render `3 / 12` instead of `3` |
 | `running_header` | `true` | document title in the header from page 2 |
 | `h1_new_page` | `false` | start each H1 after the first on a new page |
+| `number_sections` | `false` | prefix headings with `1`, `1.1`, `1.1.1` …; anchors keep the unnumbered slug |
+| `number_from` | `1` | first numbered level; `2` leaves an H1 title unnumbered |
 | `html` | `"strip"` | `strip` (keep text, drop tags) \| `drop` (discard) |
 | `image_dpi` | `150` | nominal resolution for figures; raise to shrink them on the page |
 
