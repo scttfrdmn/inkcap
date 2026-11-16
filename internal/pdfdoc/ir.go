@@ -2,6 +2,7 @@ package pdfdoc
 
 import (
 	"image"
+	"image/color"
 
 	"github.com/scttfrdmn/canvas"
 	"github.com/scttfrdmn/canvas/renderers/pdf"
@@ -101,6 +102,7 @@ type Item struct {
 type Bar struct {
 	ID    int
 	Inset float64
+	Color color.RGBA // zero means the theme's quote_bar colour (GitHub alerts set it)
 }
 
 // Marker is a list bullet or number, right-aligned into the indent gutter.

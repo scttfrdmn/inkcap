@@ -53,6 +53,7 @@ type Theme struct {
 	QuoteBar    color.RGBA
 	TableHeadBG color.RGBA
 	TableRuleC  color.RGBA
+	Alert       map[string]color.RGBA // GitHub alert type ("note", ...) -> colour
 
 	Orphans      int
 	Widows       int
@@ -195,6 +196,10 @@ func New(c config.Config) (*Theme, error) {
 		QuoteBar:    col(c.Colors.QuoteBar),
 		TableHeadBG: col(c.Colors.TableHeadBG),
 		TableRuleC:  col(c.Colors.TableRule),
+		Alert: map[string]color.RGBA{
+			"note": col(c.Colors.Note), "tip": col(c.Colors.Tip), "important": col(c.Colors.Important),
+			"warning": col(c.Colors.Warning), "caution": col(c.Colors.Caution),
+		},
 
 		Orphans:      c.Type.Orphans,
 		Widows:       c.Type.Widows,

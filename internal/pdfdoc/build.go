@@ -715,7 +715,22 @@ func (b *builder) block(n ast.Node, indent float64, bars []Bar, marker *Marker, 
 		// Each quote level adds a bar at its own inset. Copy rather than
 		// append in place, so sibling quotes don't share a backing array.
 		b.quotes++
-		inner := append(slices.Clone(bars), Bar{ID: b.quotes, Inset: indent + t.IndentStep})
+		bar := Bar{ID: b.quotes, Inset: indent + t.IndentStep}
+		kind := alertKind(v, b.src)
+		if kind != "" {
+			bar.Color = t.Alert[kind]
+		}
+		inner := append(slices.Clone(bars), bar)
+		if kind != "" {
+			// GitHub alert: a bold label in the alert colour, kept with the body.
+			label := strings.ToUpper(kind[:1]) + kind[1:]
+			b.push(&Para{
+				base:  base{after: 0.7, keep: v.FirstChild() != nil},
+				Runs:  []Run{{Face: t.Text.Face(t.BodySize, bar.Color, canvas.FontBold), Text: label}},
+				Align: canvas.Left, Opts: t.textOpts(), Orphan: 1, Widow: 1,
+			}, indent+t.IndentStep, inner, marker)
+			marker = nil
+		}
 		b.blocks(v, indent+t.IndentStep, inner, marker, depth)
 
 	case *ast.List:
@@ -966,6 +981,44 @@ func (b *builder) htmlFigure(im htmlImg, indent float64, bars []Bar, marker *Mar
 			Align: t.bodyAlign(), Opts: t.textOpts(), Orphan: t.Orphans, Widow: t.Widows,
 		}, indent, bars, marker)
 	}
+}
+
+// alertRe matches a GitHub alert marker line.
+var alertRe = regexp.MustCompile(`(?i)^\[!(note|tip|important|warning|caution)\]$`)
+
+// alertKind detects a GitHub alert (a blockquote whose first line is exactly
+// "[!NOTE]", "[!TIP]", "[!IMPORTANT]", "[!WARNING]" or "[!CAUTION]"),
+// removes the marker from the AST, and returns the lower-cased kind, or "".
+// As on GitHub, "[!NOTE] text" on the same line is an ordinary quote.
+func alertKind(q *ast.Blockquote, src []byte) string {
+	p, ok := q.FirstChild().(*ast.Paragraph)
+	if !ok {
+		return ""
+	}
+	var first []ast.Node
+	var line strings.Builder
+	for c := p.FirstChild(); c != nil; c = c.NextSibling() {
+		tx, ok := c.(*ast.Text)
+		if !ok {
+			return ""
+		}
+		first = append(first, c)
+		line.Write(tx.Segment.Value(src))
+		if tx.SoftLineBreak() || tx.HardLineBreak() {
+			break
+		}
+	}
+	m := alertRe.FindStringSubmatch(strings.TrimSpace(line.String()))
+	if m == nil {
+		return ""
+	}
+	for _, n := range first {
+		p.RemoveChild(p, n)
+	}
+	if p.ChildCount() == 0 {
+		q.RemoveChild(q, p)
+	}
+	return strings.ToLower(m[1])
 }
 
 // pageBreakRe matches an HTML comment that asks for a page break.

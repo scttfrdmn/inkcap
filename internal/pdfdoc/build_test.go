@@ -2,6 +2,7 @@ package pdfdoc
 
 import (
 	"bytes"
+	"image/color"
 	"strconv"
 	"strings"
 	"testing"
@@ -481,5 +482,37 @@ func TestSectionNumbers(t *testing.T) {
 	}
 	if got, _ := heads(theme(t, nil)); got[1].plain != "Intro" {
 		t.Errorf("numbering on by default: %+v", got[1])
+	}
+}
+
+// GitHub alerts: the marker line becomes a coloured bold label kept with the
+// body, the bar takes the alert colour, and "[!TIP] text" on one line stays an
+// ordinary quote.
+func TestGitHubAlerts(t *testing.T) {
+	th := theme(t, nil)
+	d := parse(t, "> [!NOTE]\n> Useful *info* here.\n\n> [!warning]\n> Careful.\n\n> [!TIP] same line\n", th)
+	items := d.Items
+	if len(items) != 5 {
+		t.Fatalf("got %d items, want 5 (label, body, label, body, plain quote)", len(items))
+	}
+	label := items[0].B.(*Para)
+	if plainText(label.Runs) != "Note" || !label.KeepWithNext() {
+		t.Errorf("note label = %q keep=%v", plainText(label.Runs), label.KeepWithNext())
+	}
+	if label.Runs[0].Face.Fill.Color != th.Alert["note"] {
+		t.Error("note label is not in the note colour")
+	}
+	if body := plainText(items[1].B.(*Para).Runs); body != "Useful info here." {
+		t.Errorf("note body = %q (marker not removed?)", body)
+	}
+	if c := items[1].Bars[0].Color; c != th.Alert["note"] {
+		t.Errorf("note bar colour = %v", c)
+	}
+	if plainText(items[2].B.(*Para).Runs) != "Warning" || items[3].Bars[0].Color != th.Alert["warning"] {
+		t.Error("lower-case [!warning] not recognised")
+	}
+	plain := items[4]
+	if got := plainText(plain.B.(*Para).Runs); got != "[!TIP] same line" || plain.Bars[0].Color != (color.RGBA{}) {
+		t.Errorf("one-line marker should be a plain quote, got %q", got)
 	}
 }

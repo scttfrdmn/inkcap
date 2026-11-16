@@ -127,6 +127,7 @@ anything left blank.
 | `quote_bar` | `#c7ccd4` | blockquote bar |
 | `table_head_bg` | `#f2f4f7` | table header row |
 | `table_rule` | `#c9ced6` | table rules |
+| `note`, `tip`, `important`, `warning`, `caution` | GitHub's | GitHub alert (`> [!NOTE]` …) bar and label |
 
 ### `[code]`
 
@@ -265,6 +266,12 @@ exactly this machinery to break an oversized row.
 splice the TOC in, paginate again. The TOC's *height* doesn't depend on the
 numbers it contains, so the second pass is stable; `TestTOCConverges` asserts it
 settles and that every entry's number matches where the heading actually landed.
+
+## GitHub alerts
+
+`> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]` and `> [!CAUTION]` (the
+marker alone on the quote's first line, as on GitHub) render as a quote with a
+coloured bar and a bold label, in the `[colors]` for that type.
 
 ## Page breaks
 

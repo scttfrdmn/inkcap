@@ -88,6 +88,12 @@ type Colors struct {
 	QuoteBar    string `toml:"quote_bar"`
 	TableHeadBG string `toml:"table_head_bg"`
 	TableRule   string `toml:"table_rule"`
+	// GitHub alert colours: > [!NOTE], [!TIP], [!IMPORTANT], [!WARNING], [!CAUTION]
+	Note      string `toml:"note"`
+	Tip       string `toml:"tip"`
+	Important string `toml:"important"`
+	Warning   string `toml:"warning"`
+	Caution   string `toml:"caution"`
 }
 
 type Code struct {
@@ -136,6 +142,7 @@ func Default() Config {
 			FG: "#1a1a1e", Muted: "#6b6f76", Link: "#1a549e", Rule: "#d8dbe0",
 			CodeBG: "#f6f7f9", QuoteBar: "#c7ccd4",
 			TableHeadBG: "#f2f4f7", TableRule: "#c9ced6",
+			Note: "#0969da", Tip: "#1a7f37", Important: "#8250df", Warning: "#9a6700", Caution: "#cf222e",
 		},
 		Code: Code{Style: "github", TabWidth: 4},
 		Document: Document{
@@ -294,6 +301,8 @@ func (c Config) Validate() error {
 		{"fg", c.Colors.FG}, {"muted", c.Colors.Muted}, {"link", c.Colors.Link},
 		{"rule", c.Colors.Rule}, {"code_bg", c.Colors.CodeBG}, {"quote_bar", c.Colors.QuoteBar},
 		{"table_head_bg", c.Colors.TableHeadBG}, {"table_rule", c.Colors.TableRule},
+		{"note", c.Colors.Note}, {"tip", c.Colors.Tip}, {"important", c.Colors.Important},
+		{"warning", c.Colors.Warning}, {"caution", c.Colors.Caution},
 	} {
 		if _, err := Hex(col.v); err != nil {
 			return fmt.Errorf("colors.%s: want #rrggbb or #rrggbbaa, got %q", col.key, col.v)
@@ -402,6 +411,12 @@ code_bg       = "#f6f7f9"
 quote_bar     = "#c7ccd4"
 table_head_bg = "#f2f4f7"
 table_rule    = "#c9ced6"
+# GitHub alerts (> [!NOTE] etc.): bar and label colour
+note          = "#0969da"
+tip           = "#1a7f37"
+important     = "#8250df"
+warning       = "#9a6700"
+caution       = "#cf222e"
 
 [code]
 style        = "github"   # any chroma style: monokai, dracula, nord, tango, ...

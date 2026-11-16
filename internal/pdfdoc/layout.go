@@ -2,6 +2,7 @@ package pdfdoc
 
 import (
 	"fmt"
+	"image/color"
 	"io"
 	"slices"
 	"strconv"
@@ -413,7 +414,10 @@ func tocEqual(a, b []Item) bool {
 }
 
 // barSeg is one vertical blockquote bar on a page, y-down.
-type barSeg struct{ X, Y0, Y1 float64 }
+type barSeg struct {
+	X, Y0, Y1 float64
+	Color     color.RGBA
+}
 
 // quoteBars computes the blockquote bars for one page. A bar for a given quote
 // level runs unbroken from the top of the first consecutive item inside that
@@ -432,7 +436,11 @@ func quoteBars(items []Placed, t *Theme) []barSeg {
 				continue
 			}
 			open[bar.ID] = len(out)
-			out = append(out, barSeg{X: t.MarginLeft + bar.Inset - t.IndentStep*0.55, Y0: pl.Y, Y1: pl.Y + pl.H})
+			col := bar.Color
+			if col == (color.RGBA{}) {
+				col = t.QuoteBar
+			}
+			out = append(out, barSeg{X: t.MarginLeft + bar.Inset - t.IndentStep*0.55, Y0: pl.Y, Y1: pl.Y + pl.H, Color: col})
 		}
 		for id := range open {
 			if !cur[id] {
@@ -444,9 +452,9 @@ func quoteBars(items []Placed, t *Theme) []barSeg {
 }
 
 func (d *Doc) drawQuoteBars(r *Rctx, segs []barSeg) {
-	r.C.SetStrokeColor(d.T.QuoteBar)
 	r.C.SetStrokeWidth(1.1)
 	for _, s := range segs {
+		r.C.SetStrokeColor(s.Color)
 		r.C.MoveTo(s.X, s.Y0)
 		r.C.LineTo(s.X, s.Y1)
 		r.C.Stroke()

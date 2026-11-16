@@ -7,6 +7,8 @@ All notable changes to inkcap. The format follows
 ## [Unreleased]
 
 ### Added
+- GitHub alerts: `> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`
+  render with a coloured bar and bold label (colours in `[colors]`) (#77).
 - HTML `<img>`: a block of only images renders local ones as figures (alt as
   caption, `width` honoured); otherwise the alt text or an inline image is shown
   instead of the tag vanishing (#84).
