@@ -556,6 +556,17 @@ func (b *builder) inline(n ast.Node, s style, out *[]Run) {
 			if brRe.MatchString(raw) {
 				*out = append(*out, b.run(s, "\n"))
 			}
+			if imgRe.MatchString(raw) && b.t.HTML != "drop" {
+				im := parseImg(raw)
+				switch m, c, ok := b.loadAny(im.src); {
+				case !ok:
+					b.emit(s, im.alt, out)
+				case c != nil:
+					*out = append(*out, b.svgRun(s, c))
+				default:
+					*out = append(*out, b.imageRun(s, m))
+				}
+			}
 			b.warnHTML(raw)
 		default:
 			b.inline(c, s, out)
@@ -787,6 +798,18 @@ func (b *builder) block(n ast.Node, indent float64, bars []Bar, marker *Marker, 
 		if t.HTML == "drop" {
 			return
 		}
+		// A block of nothing but <img> tags (the centred README logo) renders
+		// its local images as figures; any other <img> becomes its alt text.
+		if imgs := parseImgs(raw); len(imgs) > 0 {
+			if strings.TrimSpace(tagRe.ReplaceAllString(raw, "")) == "" {
+				for _, im := range imgs {
+					b.htmlFigure(im, indent, bars, marker)
+					marker = nil
+				}
+				return
+			}
+			raw = imgRe.ReplaceAllStringFunc(raw, func(tag string) string { return " " + parseImg(tag).alt + " " })
+		}
 		txt := strings.TrimSpace(tagRe.ReplaceAllString(raw, " "))
 		txt = wsRe.ReplaceAllString(txt, " ")
 		if txt == "" {
@@ -882,6 +905,69 @@ func (b *builder) checkTargets() {
 	}
 }
 
+// imgRe matches an HTML <img> tag; attrRe pulls attributes out of one.
+var (
+	imgRe  = regexp.MustCompile(`(?is)<img\b[^>]*>`)
+	attrRe = regexp.MustCompile(`(?is)\b(src|alt|width)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))`)
+)
+
+// htmlImg is the part of an <img> tag inkcap uses.
+type htmlImg struct {
+	src, alt string
+	widthMM  float64 // from width="N" (CSS px, 96 per inch); 0 if unset
+}
+
+func parseImg(tag string) htmlImg {
+	var im htmlImg
+	for _, m := range attrRe.FindAllStringSubmatch(tag, -1) {
+		v := stdhtml.UnescapeString(m[2] + m[3] + m[4])
+		switch strings.ToLower(m[1]) {
+		case "src":
+			im.src = v
+		case "alt":
+			im.alt = v
+		case "width":
+			if px, err := strconv.ParseFloat(strings.TrimSuffix(v, "px"), 64); err == nil && px > 0 {
+				im.widthMM = px * 25.4 / 96
+			}
+		}
+	}
+	return im
+}
+
+func parseImgs(raw string) []htmlImg {
+	var out []htmlImg
+	for _, tag := range imgRe.FindAllString(raw, -1) {
+		out = append(out, parseImg(tag))
+	}
+	return out
+}
+
+// htmlFigure renders an HTML <img> as a figure, or its alt text if the image
+// can't be loaded (remote, missing: loadAny warns).
+func (b *builder) htmlFigure(im htmlImg, indent float64, bars []Bar, marker *Marker) {
+	t := b.t
+	if m, c, ok := b.loadAny(im.src); ok {
+		var cap []Run
+		if im.alt != "" {
+			b.emit(style{size: t.SmallSize, color: colMuted}, im.alt, &cap)
+		}
+		b.push(&Image{
+			base: base{before: t.BlockSpace, after: t.BlockSpace},
+			Img:  m, SVG: c, Caption: cap, WidthMM: im.widthMM, T: t,
+		}, indent, bars, marker)
+		return
+	}
+	if im.alt != "" {
+		var runs []Run
+		b.emit(style{size: t.BodySize}, im.alt, &runs)
+		b.push(&Para{
+			base: base{after: t.ParaSpace}, Runs: runs,
+			Align: t.bodyAlign(), Opts: t.textOpts(), Orphan: t.Orphans, Widow: t.Widows,
+		}, indent, bars, marker)
+	}
+}
+
 // pageBreakRe matches an HTML comment that asks for a page break.
 var pageBreakRe = regexp.MustCompile(`(?i)^<!--\s*(page-?break|new-?page)\s*-->$`)
 
@@ -916,7 +1002,7 @@ func (b *builder) warnHTML(raw string) {
 		if i := strings.IndexAny(name, " \t\n"); i > 0 {
 			name = name[:i]
 		}
-		if name == "" || name == "br" {
+		if name == "" || name == "br" || strings.EqualFold(name, "img") {
 			continue
 		}
 		w := "dropped HTML tag <" + name + ">"

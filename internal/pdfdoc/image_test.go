@@ -278,3 +278,58 @@ func TestLinkedImageIsFigure(t *testing.T) {
 		t.Errorf("linked image inside text became %T, want inline in a *Para", d.Items[0].B)
 	}
 }
+
+// HTML <img>: a block of only images becomes figures (alt as caption, width in
+// CSS px honoured); a remote or missing one shows its alt text; inline it's
+// an inline image or alt text; and none of it warns "dropped HTML tag <img>".
+func TestHTMLImg(t *testing.T) {
+	th := theme(t, nil)
+	png := writePNG(t, 400, 200)
+	src := "<p align=\"center\">\n  <img src=\"" + png + "\" alt=\"The logo\" width=\"192\">\n</p>\n\n" +
+		"<img src=\"https://example.com/badge.svg\" alt=\"build passing\">\n\n" +
+		"Inline <img src=\"" + png + "\" alt=\"icon\"> and <img src=\"nope.png\" alt=\"gone\"> here.\n\n" +
+		"<div>Text with <img src=\"" + png + "\" alt=\"pic\"> inside.</div>\n"
+	d := parse(t, src, th)
+	var fig *Image
+	var texts []string
+	for _, it := range d.Items {
+		switch v := it.B.(type) {
+		case *Image:
+			fig = v
+		case *Para:
+			texts = append(texts, plainText(v.Runs))
+		}
+	}
+	if fig == nil {
+		t.Fatal("block <img> did not become a figure")
+	}
+	if got := plainText(fig.Caption); got != "The logo" {
+		t.Errorf("figure caption = %q, want the alt text", got)
+	}
+	if w, _ := fig.dims(th.ContentW()); w < 50.7 || w > 50.9 { // 192px at 96/in = 50.8mm
+		t.Errorf("figure width = %.1fmm, want 50.8 (width=\"192\")", w)
+	}
+	all := strings.Join(texts, "|")
+	for _, want := range []string{"build passing", "Inline", "gone", "Text with pic inside."} {
+		if !strings.Contains(all, want) {
+			t.Errorf("missing %q in %q", want, all)
+		}
+	}
+	inline := false
+	for _, it := range d.Items {
+		if p, ok := it.B.(*Para); ok && p.hasImage() {
+			inline = true
+		}
+	}
+	if !inline {
+		t.Error("inline <img> of a local file is not an inline image")
+	}
+	for _, w := range d.Warn {
+		if strings.Contains(w, "<img>") {
+			t.Errorf("warned about <img>: %q", w)
+		}
+	}
+	if j := strings.Join(d.Warn, "\n"); !strings.Contains(j, "remote images are not fetched") || !strings.Contains(j, "nope.png: not found") {
+		t.Errorf("missing remote/not-found warnings: %v", d.Warn)
+	}
+}

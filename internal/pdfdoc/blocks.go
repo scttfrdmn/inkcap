@@ -581,7 +581,8 @@ type Image struct {
 	Img     image.Image    // raster figure
 	SVG     *canvas.Canvas // vector figure (mutually exclusive with Img)
 	Caption []Run
-	Link    string // set when the figure is wrapped in a link; the image is clickable
+	Link    string  // set when the figure is wrapped in a link; the image is clickable
+	WidthMM float64 // explicit width (from an HTML <img width>), before fitting
 	T       *Theme
 }
 
@@ -598,6 +599,10 @@ func (im *Image) dims(w float64) (iw, ih float64) {
 		// Nominal DPI, scaled down to fit the measure.
 		iw = float64(b.Dx()) * 25.4 / dpi
 		ih = float64(b.Dy()) * 25.4 / dpi
+	}
+	if im.WidthMM > 0 && iw > 0 {
+		ih *= im.WidthMM / iw
+		iw = im.WidthMM
 	}
 	if iw > w {
 		ih *= w / iw

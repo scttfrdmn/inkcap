@@ -7,6 +7,9 @@ All notable changes to inkcap. The format follows
 ## [Unreleased]
 
 ### Added
+- HTML `<img>`: a block of only images renders local ones as figures (alt as
+  caption, `width` honoured); otherwise the alt text or an inline image is shown
+  instead of the tag vanishing (#84).
 - Section numbering: `document.number_sections` prefixes headings with 1, 1.1,
   1.1.1 (in the TOC and bookmarks too), and `number_from = 2` leaves an H1 title
   unnumbered. Anchors keep the unnumbered slug (#79).

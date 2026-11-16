@@ -332,8 +332,12 @@ gradients) may render partially.
 ## HTML
 
 `html = "strip"` (default) keeps the text and drops the tags; `<br>` becomes a
-line break. `html = "drop"` discards HTML blocks entirely. Either way, each
-distinct dropped tag is reported once on stderr — no more silent mangling.
+line break. `<img>` is the one tag inkcap renders: a block holding only images
+(the centred README logo) shows each local one as a figure, captioned with its
+`alt` and sized by `width` (CSS pixels); a remote or missing one, or an `<img>`
+inside text, shows its alt text or an inline image. `html = "drop"` discards
+HTML blocks entirely. Either way, each distinct dropped tag is reported once on
+stderr — no more silent mangling.
 
 ## Tests
 
