@@ -92,8 +92,15 @@ type Note struct {
 type Item struct {
 	B      Block
 	Indent float64 // left inset in mm
-	Bar    bool    // draw a blockquote rule in the gutter
+	Bars   []Bar   // one per enclosing blockquote, outermost first
 	Marker *Marker // list bullet/number, drawn once on the first fragment
+}
+
+// Bar identifies one enclosing blockquote: ID distinguishes two adjacent
+// quotes at the same depth, and Inset is the quote's content inset in mm.
+type Bar struct {
+	ID    int
+	Inset float64
 }
 
 // Marker is a list bullet or number, right-aligned into the indent gutter.

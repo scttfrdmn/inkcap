@@ -345,3 +345,49 @@ func TestHardBrokenParagraphSplits(t *testing.T) {
 		}
 	}
 }
+
+// Blockquote bars: one unbroken bar per quote level (spanning the gaps between
+// paragraphs), one bar per nesting level, lists inside quotes keep the bar,
+// and two separate quotes get separate bars.
+func TestQuoteBars(t *testing.T) {
+	th := theme(t, nil)
+	bars := func(src string) []barSeg {
+		d := parse(t, src, th)
+		pages := d.paginate(d.Items)
+		if len(pages) != 1 {
+			t.Fatalf("want 1 page")
+		}
+		return quoteBars(pages[0].Items, th)
+	}
+	itemsIn := func(src string) []Item { return parse(t, src, th).Items }
+
+	// Two paragraphs in one quote: a single segment covering both.
+	src := "> first paragraph\n>\n> second paragraph\n"
+	segs := bars(src)
+	if len(segs) != 1 {
+		t.Fatalf("two-paragraph quote: %d segments, want 1 continuous bar", len(segs))
+	}
+	d := parse(t, src, th)
+	pl := d.paginate(d.Items)[0].Items
+	if segs[0].Y0 > pl[0].Y+0.01 || segs[0].Y1 < pl[1].Y+pl[1].H-0.01 {
+		t.Errorf("bar %.1f-%.1f doesn't span both paragraphs (%.1f-%.1f)", segs[0].Y0, segs[0].Y1, pl[0].Y, pl[1].Y+pl[1].H)
+	}
+
+	// Nested quote: the inner item carries both levels, at different x.
+	segs = bars("> outer\n>\n> > inner\n")
+	if len(segs) != 2 || segs[0].X == segs[1].X {
+		t.Errorf("nested quote: segments %+v, want 2 at different x", segs)
+	}
+
+	// A list inside a quote keeps the bar.
+	for _, it := range itemsIn("> - one\n> - two\n") {
+		if len(it.Bars) != 1 {
+			t.Errorf("list item inside a quote has %d bars, want 1", len(it.Bars))
+		}
+	}
+
+	// Two separate quotes: two bars, not one merged across the gap.
+	if segs := bars("> one\n\n> two\n"); len(segs) != 2 {
+		t.Errorf("two separate quotes: %d segments, want 2", len(segs))
+	}
+}

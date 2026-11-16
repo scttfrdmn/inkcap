@@ -7,6 +7,8 @@ All notable changes to inkcap. The format follows
 ## [Unreleased]
 
 ### Fixed
+- Blockquote bars run unbroken through a quote, each nesting level gets its
+  own bar, lists inside quotes keep it, and adjacent quotes stay separate (#65).
 - Code blocks use the fallback fonts and missing-glyph warning like prose, and
   wide (CJK) characters count as two columns when wrapping (#64).
 - A chain of headings (H2, H3, H4 in a row) is no longer stranded at the foot

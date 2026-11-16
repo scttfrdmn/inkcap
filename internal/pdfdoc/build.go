@@ -53,6 +53,7 @@ type builder struct {
 	title   string
 	warn    []string
 	missing map[rune]bool                           // runes already warned about, deduped
+	quotes  int                                     // blockquotes seen, for Bar IDs
 	ids     map[string]bool                         // heading anchors handed out so far
 	monoFB  map[*canvas.FontFace][]*canvas.FontFace // code fallback faces, per primary
 	targets []string                                // "#..." link targets, checked once all ids exist
@@ -78,7 +79,7 @@ func Parse(src []byte, baseDir string, t *Theme) (*Doc, error) {
 		body:  map[int]Note{},
 	}
 	b.title = meta.Title // front matter wins over the first H1
-	b.blocks(root, 0, false, nil, 0)
+	b.blocks(root, 0, nil, nil, 0)
 	b.checkTargets()
 	return &Doc{
 		Items: b.items, Links: b.links, Notes: b.notes, Body: b.body,
@@ -403,26 +404,26 @@ func (b *builder) runs(n ast.Node, s style) []Run {
 // blocks
 // ---------------------------------------------------------------------------
 
-func (b *builder) push(blk Block, indent float64, bar bool, m *Marker) {
-	b.items = append(b.items, Item{B: blk, Indent: indent, Bar: bar, Marker: m})
+func (b *builder) push(blk Block, indent float64, bars []Bar, m *Marker) {
+	b.items = append(b.items, Item{B: blk, Indent: indent, Bars: bars, Marker: m})
 }
 
 // depth is the list-nesting level (0 at the document root); it selects the
 // unordered-list bullet glyph independently of the millimetre inset, so a
 // custom spacing.indent doesn't disturb the bullet cycle.
-func (b *builder) blocks(n ast.Node, indent float64, bar bool, marker *Marker, depth int) {
+func (b *builder) blocks(n ast.Node, indent float64, bars []Bar, marker *Marker, depth int) {
 	first := true
 	for c := n.FirstChild(); c != nil; c = c.NextSibling() {
 		m := marker
 		if !first {
 			m = nil
 		}
-		b.block(c, indent, bar, m, depth)
+		b.block(c, indent, bars, m, depth)
 		first = false
 	}
 }
 
-func (b *builder) block(n ast.Node, indent float64, bar bool, marker *Marker, depth int) {
+func (b *builder) block(n ast.Node, indent float64, bars []Bar, marker *Marker, depth int) {
 	t := b.t
 	body := style{size: t.BodySize}
 
@@ -445,7 +446,7 @@ func (b *builder) block(n ast.Node, indent float64, bar bool, marker *Marker, de
 			Level: lvl, Runs: runs, Plain: plain, ID: b.anchorID(plain),
 			Opts: t.textOpts(), Rule: lvl <= t.HeadingRules, T: t,
 		}
-		b.push(h, indent, bar, marker)
+		b.push(h, indent, bars, marker)
 
 	case *ast.Paragraph, *ast.TextBlock:
 		// A paragraph whose only content is an image becomes a figure.
@@ -460,7 +461,7 @@ func (b *builder) block(n ast.Node, indent float64, bar bool, marker *Marker, de
 							SVG:     c,
 							Caption: cap,
 							T:       t,
-						}, indent, bar, marker)
+						}, indent, bars, marker)
 						return
 					}
 					// fall through to alt text if the SVG is missing/invalid
@@ -470,7 +471,7 @@ func (b *builder) block(n ast.Node, indent float64, bar bool, marker *Marker, de
 						Img:     m,
 						Caption: cap,
 						T:       t,
-					}, indent, bar, marker)
+					}, indent, bars, marker)
 					return
 				}
 				// fall through to alt text if the file is missing
@@ -489,32 +490,36 @@ func (b *builder) block(n ast.Node, indent float64, bar bool, marker *Marker, de
 			Runs: runs, Align: t.bodyAlign(), Opts: t.textOpts(),
 			Orphan: t.Orphans, Widow: t.Widows,
 		}
-		b.push(p, indent, bar, marker)
+		b.push(p, indent, bars, marker)
 
 	case *ast.FencedCodeBlock:
 		lang := string(v.Language(b.src))
-		b.push(b.code(v.Lines(), lang), indent, bar, marker)
+		b.push(b.code(v.Lines(), lang), indent, bars, marker)
 
 	case *ast.CodeBlock:
-		b.push(b.code(v.Lines(), ""), indent, bar, marker)
+		b.push(b.code(v.Lines(), ""), indent, bars, marker)
 
 	case *ast.Blockquote:
-		b.blocks(v, indent+t.IndentStep, true, marker, depth)
+		// Each quote level adds a bar at its own inset. Copy rather than
+		// append in place, so sibling quotes don't share a backing array.
+		b.quotes++
+		inner := append(slices.Clone(bars), Bar{ID: b.quotes, Inset: indent + t.IndentStep})
+		b.blocks(v, indent+t.IndentStep, inner, marker, depth)
 
 	case *ast.List:
-		b.list(v, indent, depth+1)
+		b.list(v, indent, bars, depth+1)
 
 	case *ast.ListItem:
-		b.blocks(v, indent, bar, marker, depth)
+		b.blocks(v, indent, bars, marker, depth)
 
 	case *ast.ThematicBreak:
-		b.push(&Rule{base: base{before: t.BlockSpace, after: t.BlockSpace}, T: t}, indent, bar, marker)
+		b.push(&Rule{base: base{before: t.BlockSpace, after: t.BlockSpace}, T: t}, indent, bars, marker)
 
 	case *xast.Table:
-		b.table(v, indent, bar, marker)
+		b.table(v, indent, bars, marker)
 
 	case *xast.DefinitionList:
-		b.blocks(v, indent, bar, marker, depth)
+		b.blocks(v, indent, bars, marker, depth)
 
 	case *xast.DefinitionTerm:
 		// The term is inline content; render it bold and keep it with the
@@ -527,11 +532,11 @@ func (b *builder) block(n ast.Node, indent float64, bar bool, marker *Marker, de
 			base: base{after: 0.7, keep: true},
 			Runs: runs, Align: t.bodyAlign(), Opts: t.textOpts(),
 			Orphan: t.Orphans, Widow: t.Widows,
-		}, indent, bar, marker)
+		}, indent, bars, marker)
 
 	case *xast.DefinitionDescription:
 		// The description is block content, inset one step under its term.
-		b.blocks(v, indent+t.IndentStep, bar, nil, depth)
+		b.blocks(v, indent+t.IndentStep, bars, nil, depth)
 
 	case *xast.FootnoteList:
 		if t.Footnotes == "none" {
@@ -579,10 +584,10 @@ func (b *builder) block(n ast.Node, indent float64, bar bool, marker *Marker, de
 			Runs:  []Run{b.run(body, txt)},
 			Align: t.bodyAlign(), Opts: t.textOpts(),
 			Orphan: t.Orphans, Widow: t.Widows,
-		}, indent, bar, marker)
+		}, indent, bars, marker)
 
 	default:
-		b.blocks(n, indent, bar, marker, depth)
+		b.blocks(n, indent, bars, marker, depth)
 	}
 }
 
@@ -665,7 +670,7 @@ func (b *builder) warnHTML(raw string) {
 	}
 }
 
-func (b *builder) list(v *ast.List, indent float64, depth int) {
+func (b *builder) list(v *ast.List, indent float64, bars []Bar, depth int) {
 	t := b.t
 	i := v.Start // goldmark sets this for every ordered list; 0 is a real start
 	for li := v.FirstChild(); li != nil; li = li.NextSibling() {
@@ -698,7 +703,7 @@ func (b *builder) list(v *ast.List, indent float64, depth int) {
 		if mk.Shape == ShapeText {
 			mk.Face = b.markerFace(ms, mk.Face, mk.Text)
 		}
-		b.blocks(li, indent+t.IndentStep, false, mk, depth)
+		b.blocks(li, indent+t.IndentStep, bars, mk, depth)
 	}
 }
 
@@ -746,7 +751,7 @@ func markerGlyph(depth int) string {
 	}
 }
 
-func (b *builder) table(v *xast.Table, indent float64, bar bool, marker *Marker) {
+func (b *builder) table(v *xast.Table, indent float64, bars []Bar, marker *Marker) {
 	t := b.t
 	tb := &Table{
 		base: base{before: t.BlockSpace, after: t.BlockSpace},
@@ -785,7 +790,7 @@ func (b *builder) table(v *xast.Table, indent float64, bar bool, marker *Marker)
 			tb.Rows = append(tb.Rows, cells)
 		}
 	}
-	b.push(tb, indent, bar, marker)
+	b.push(tb, indent, bars, marker)
 }
 
 // ---------------------------------------------------------------------------

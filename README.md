@@ -190,7 +190,7 @@ markdown ──goldmark──▶ AST
                        ├─ build.go   AST → flat block flow  (nesting becomes
                        │              indent + decoration, not recursion)
                        ▼
-                    []Item  { Block, Indent, Bar, Marker }
+                    []Item  { Block, Indent, Bars, Marker }
                        │
                        ├─ layout.go  paginate  → []Page   (pure)
                        │              draw      → PDF

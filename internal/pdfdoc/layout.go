@@ -338,6 +338,7 @@ func (d *Doc) Render(w io.Writer, title string) error {
 		if i > 0 {
 			p.NewPage(t.PageW, t.PageH)
 		}
+		d.drawQuoteBars(r, quoteBars(page.Items, t))
 		for _, pl := range page.Items {
 			d.paint(r, pl)
 		}
@@ -364,18 +365,51 @@ func tocEqual(a, b []Item) bool {
 	return true
 }
 
+// barSeg is one vertical blockquote bar on a page, y-down.
+type barSeg struct{ X, Y0, Y1 float64 }
+
+// quoteBars computes the blockquote bars for one page. A bar for a given quote
+// level runs unbroken from the top of the first consecutive item inside that
+// quote to the bottom of the last, so it spans the gaps between paragraphs, and
+// each nesting level gets its own bar at its own inset. Pure, so it can be
+// tested without drawing.
+func quoteBars(items []Placed, t *Theme) []barSeg {
+	var out []barSeg
+	open := map[int]int{} // quote ID -> index in out of its running segment
+	for _, pl := range items {
+		cur := map[int]bool{}
+		for _, bar := range pl.It.Bars {
+			cur[bar.ID] = true
+			if j, ok := open[bar.ID]; ok {
+				out[j].Y1 = pl.Y + pl.H // extend through the gap to this item
+				continue
+			}
+			open[bar.ID] = len(out)
+			out = append(out, barSeg{X: t.MarginLeft + bar.Inset - t.IndentStep*0.55, Y0: pl.Y, Y1: pl.Y + pl.H})
+		}
+		for id := range open {
+			if !cur[id] {
+				delete(open, id) // the quote ended
+			}
+		}
+	}
+	return out
+}
+
+func (d *Doc) drawQuoteBars(r *Rctx, segs []barSeg) {
+	r.C.SetStrokeColor(d.T.QuoteBar)
+	r.C.SetStrokeWidth(1.1)
+	for _, s := range segs {
+		r.C.MoveTo(s.X, s.Y0)
+		r.C.LineTo(s.X, s.Y1)
+		r.C.Stroke()
+	}
+}
+
 // paint draws one placed item plus its decoration.
 func (d *Doc) paint(r *Rctx, pl Placed) {
 	t := d.T
 	it := pl.It
-	if it.Bar {
-		bx := pl.X - t.IndentStep*0.55
-		r.C.SetStrokeColor(t.QuoteBar)
-		r.C.SetStrokeWidth(1.1)
-		r.C.MoveTo(bx, pl.Y)
-		r.C.LineTo(bx, pl.Y+pl.H)
-		r.C.Stroke()
-	}
 	if m := it.Marker; m != nil {
 		gutter := t.IndentStep - 1.6
 		if m.Shape == ShapeText {
