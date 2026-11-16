@@ -1,8 +1,10 @@
 package pdfdoc
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
+	stdhtml "html"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
@@ -24,6 +26,7 @@ import (
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
 	xast "github.com/yuin/goldmark/extension/ast"
+	gmhtml "github.com/yuin/goldmark/renderer/html"
 	"github.com/yuin/goldmark/text"
 )
 
@@ -280,7 +283,7 @@ func (b *builder) inline(n ast.Node, s style, out *[]Run) {
 	for c := n.FirstChild(); c != nil; c = c.NextSibling() {
 		switch v := c.(type) {
 		case *ast.Text:
-			txt := string(v.Segment.Value(b.src))
+			txt := decodeText(v.Segment.Value(b.src))
 			if v.SoftLineBreak() {
 				txt += " "
 			}
@@ -364,6 +367,23 @@ func (b *builder) inline(n ast.Node, s style, out *[]Run) {
 			b.inline(c, s, out)
 		}
 	}
+}
+
+// decodeText resolves backslash escapes and entity/numeric character
+// references in a text segment. goldmark leaves both to the renderer, so the
+// raw segment still reads "\*x\*" or "&copy;". Running it through goldmark's own
+// HTML text writer gives exactly CommonMark's semantics (an escaped "\&copy;"
+// stays literal); html.UnescapeString then undoes only the writer's HTML
+// escaping. Code spans and code blocks never come through here.
+func decodeText(seg []byte) string {
+	if bytes.IndexByte(seg, '\\') < 0 && bytes.IndexByte(seg, '&') < 0 {
+		return string(seg) // fast path: nothing to decode
+	}
+	var buf bytes.Buffer
+	w := bufio.NewWriter(&buf)
+	gmhtml.DefaultWriter.Write(w, seg)
+	w.Flush()
+	return stdhtml.UnescapeString(buf.String())
 }
 
 func (b *builder) runs(n ast.Node, s style) []Run {

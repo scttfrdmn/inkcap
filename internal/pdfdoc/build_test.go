@@ -218,3 +218,38 @@ func TestFootnoteRefNotInHeadingText(t *testing.T) {
 		}
 	}
 }
+
+// Backslash escapes and entity/numeric references are resolved in text, as
+// CommonMark specifies, but code spans stay literal. They used to print raw.
+func TestEscapesAndEntities(t *testing.T) {
+	th := theme(t, nil)
+	text := func(src string) string {
+		var sb strings.Builder
+		for _, it := range parse(t, src, th).Items {
+			switch v := it.B.(type) {
+			case *Para:
+				sb.WriteString(plainText(v.Runs))
+			case *Table:
+				for _, r := range v.Rows {
+					for _, c := range r {
+						sb.WriteString(plainText(c.Runs) + "|")
+					}
+				}
+			}
+		}
+		return sb.String()
+	}
+	for src, want := range map[string]string{
+		`\*not em\* and \# and \\`:                   `*not em* and # and \`,
+		`&copy; &amp; &lt;tag&gt; &nbsp;x`:           "© & <tag>  x",
+		`&#8212; &#x2014; &#169;`:                    "— — ©",
+		`\&copy; stays literal`:                      "&copy; stays literal",
+		"`&copy; \\* in code`":                       `&copy; \* in code`,
+		"[a \\[link\\]](https://x.y)":                "a [link]",
+		"| a | b |\n|---|---|\n| x \\| y | &lt; |\n": "x | y|<|",
+	} {
+		if got := text(src); got != want {
+			t.Errorf("%q -> %q, want %q", src, got, want)
+		}
+	}
+}

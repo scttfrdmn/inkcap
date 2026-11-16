@@ -6,6 +6,10 @@ All notable changes to inkcap. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- Backslash escapes (`\*`, `\|`) and HTML entities (`&copy;`, `&#8212;`) are
+  resolved instead of printing literally; code stays literal (#59).
+
 ## [0.5.0] — 2026-11-16
 
 ### Changed
