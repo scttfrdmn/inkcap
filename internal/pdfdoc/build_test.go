@@ -218,3 +218,34 @@ func TestFootnoteRefNotInHeadingText(t *testing.T) {
 		}
 	}
 }
+
+// Email autolinks must be prefixed with mailto: so PDF viewers open them as
+// email links rather than treating the bare address as a relative file path.
+// URL autolinks are left unchanged.
+func TestEmailAutoLinkMailto(t *testing.T) {
+	th := theme(t, nil)
+	src := "Contact <me@example.com> or <https://example.com>.
+"
+	d := parse(t, src, th)
+	var links []string
+	for _, it := range d.Items {
+		p, ok := it.B.(*Para)
+		if !ok {
+			continue
+		}
+		for _, r := range p.Runs {
+			if r.Link != "" {
+				links = append(links, r.Link)
+			}
+		}
+	}
+	want := []string{"mailto:me@example.com", "https://example.com"}
+	if len(links) != len(want) {
+		t.Fatalf("got links %v, want %v", links, want)
+	}
+	for i, w := range want {
+		if links[i] != w {
+			t.Errorf("link %d = %q, want %q", i, links[i], w)
+		}
+	}
+}
