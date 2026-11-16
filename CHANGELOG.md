@@ -7,6 +7,8 @@ All notable changes to inkcap. The format follows
 ## [Unreleased]
 
 ### Fixed
+- Code blocks use the fallback fonts and missing-glyph warning like prose, and
+  wide (CJK) characters count as two columns when wrapping (#64).
 - A chain of headings (H2, H3, H4 in a row) is no longer stranded at the foot
   of a page (#63).
 - HTML comments, `<!DOCTYPE>` and `<?…?>` are dropped silently; a multi-line

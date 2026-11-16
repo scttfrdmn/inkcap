@@ -52,9 +52,10 @@ type builder struct {
 	body    map[int]Note
 	title   string
 	warn    []string
-	missing map[rune]bool   // runes already warned about, deduped
-	ids     map[string]bool // heading anchors handed out so far
-	targets []string        // "#..." link targets, checked once all ids exist
+	missing map[rune]bool                           // runes already warned about, deduped
+	ids     map[string]bool                         // heading anchors handed out so far
+	monoFB  map[*canvas.FontFace][]*canvas.FontFace // code fallback faces, per primary
+	targets []string                                // "#..." link targets, checked once all ids exist
 }
 
 // Parse converts markdown source into a block flow.
@@ -864,7 +865,7 @@ func (b *builder) highlight(src, lang string, plain *canvas.FontFace) [][]Run {
 				cur = []Run{}
 			}
 			if p != "" {
-				cur = append(cur, Run{Face: f, Text: b.expandTabs(p)})
+				cur = append(cur, b.monoRuns(f, b.expandTabs(p))...)
 			}
 		}
 	}
@@ -879,9 +880,60 @@ func (b *builder) plainLines(src string, f *canvas.FontFace) [][]Run {
 			out = append(out, nil)
 			continue
 		}
-		out = append(out, []Run{{Face: f, Text: b.expandTabs(ln)}})
+		out = append(out, b.monoRuns(f, b.expandTabs(ln)))
 	}
 	return out
+}
+
+// monoRuns splits code text into runs by glyph coverage, like emit does for
+// prose: characters the mono face lacks switch to the first fallback family
+// that has them (same size, colour and style), and a character no font covers
+// is reported once. Code blocks used to bypass both.
+func (b *builder) monoRuns(primary *canvas.FontFace, txt string) []Run {
+	var out []Run
+	var cur strings.Builder
+	curFace := primary
+	flush := func() {
+		if cur.Len() > 0 {
+			out = append(out, Run{Face: curFace, Text: cur.String()})
+			cur.Reset()
+		}
+	}
+	for _, r := range txt {
+		f := primary
+		if !covers(primary, r) {
+			f = b.monoFallback(primary, r)
+		}
+		if f != curFace {
+			flush()
+			curFace = f
+		}
+		cur.WriteRune(r)
+	}
+	flush()
+	return out
+}
+
+// monoFallback finds (and caches per primary face) the fallback face covering
+// r, or warns and returns primary.
+func (b *builder) monoFallback(primary *canvas.FontFace, r rune) *canvas.FontFace {
+	if b.monoFB == nil {
+		b.monoFB = map[*canvas.FontFace][]*canvas.FontFace{}
+	}
+	faces, ok := b.monoFB[primary]
+	if !ok {
+		for _, fam := range b.t.Fallback {
+			faces = append(faces, fam.Face(b.t.CodeSize, primary.Fill.Color, primary.Style))
+		}
+		b.monoFB[primary] = faces
+	}
+	for _, f := range faces {
+		if covers(f, r) {
+			return f
+		}
+	}
+	b.warnRune(r)
+	return primary
 }
 
 func (b *builder) expandTabs(s string) string {

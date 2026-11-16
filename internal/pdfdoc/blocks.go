@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/tdewolff/canvas"
+	"golang.org/x/text/width"
 )
 
 // ---------------------------------------------------------------------------
@@ -313,12 +314,32 @@ func (c *Code) visual(w float64) ([][]Run, []int) {
 	return out, nums
 }
 
-// wrapMono breaks one logical line into visual lines at maxCols characters,
-// splitting runs as needed and indenting continuations by two columns.
+// monoCols is how many monospace columns r occupies: two for East Asian wide
+// and fullwidth characters (CJK, mostly drawn from a fallback font), one
+// otherwise. Without this a line of CJK in a code block overflows the box.
+func monoCols(r rune) int {
+	switch width.LookupRune(r).Kind() {
+	case width.EastAsianWide, width.EastAsianFullwidth:
+		return 2
+	}
+	return 1
+}
+
+func runCols(s string) int {
+	n := 0
+	for _, r := range s {
+		n += monoCols(r)
+	}
+	return n
+}
+
+// wrapMono breaks one logical line into visual lines at maxCols columns,
+// splitting runs as needed and indenting continuations by two columns. A wide
+// character never straddles the limit: it moves to the next line whole.
 func wrapMono(line []Run, maxCols int) [][]Run {
 	total := 0
 	for _, r := range line {
-		total += len([]rune(r.Text))
+		total += runCols(r.Text)
 	}
 	if total <= maxCols {
 		return [][]Run{line}
@@ -341,16 +362,24 @@ func wrapMono(line []Run, maxCols int) [][]Run {
 	for _, r := range line {
 		rs := []rune(r.Text)
 		for len(rs) > 0 {
-			room := limit - col
-			if room <= 0 {
-				flush()
-				continue
+			// take as many runes as fit in the remaining columns
+			n, used := 0, 0
+			for n < len(rs) && col+used+monoCols(rs[n]) <= limit {
+				used += monoCols(rs[n])
+				n++
 			}
-			n := min(room, len(rs))
+			if n == 0 {
+				if col == 0 {
+					n, used = 1, monoCols(rs[0]) // wider than a whole line: place it anyway
+				} else {
+					flush()
+					continue
+				}
+			}
 			cur = append(cur, Run{Face: r.Face, Text: string(rs[:n])})
-			col += n
+			col += used
 			rs = rs[n:]
-			if col >= limit && len(rs) > 0 {
+			if len(rs) > 0 {
 				flush()
 			}
 		}

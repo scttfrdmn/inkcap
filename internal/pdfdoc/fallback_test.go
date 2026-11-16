@@ -110,3 +110,56 @@ func TestFallbackCoversGlyph(t *testing.T) {
 		t.Error("CJK text was not routed to a fallback face")
 	}
 }
+
+// Code blocks take the same glyph fallback and missing-glyph warning as prose.
+// They used to emit every token with the mono face, drawing .notdef boxes.
+func TestCodeBlockMissingGlyphWarns(t *testing.T) {
+	th := theme(t, nil)
+	d := parse(t, "```go\nfmt.Println(\"你好\") // 你\n```\n", th)
+	n := 0
+	for _, w := range d.Warn {
+		if strings.Contains(w, "U+4F60") {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Errorf("got %d warnings for U+4F60 in a code block, want 1: %v", n, d.Warn)
+	}
+}
+
+func TestCodeBlockFallbackFace(t *testing.T) {
+	const fontPath = "/System/Library/Fonts/Supplemental/Arial Unicode.ttf"
+	if _, err := os.Stat(fontPath); err != nil {
+		t.Skipf("no broad-coverage fallback font at %s", fontPath)
+	}
+	th := theme(t, func(c *config.Config) { c.Fonts.Fallback = []string{fontPath} })
+	d := parse(t, "```\nok 你好 ok\n```\n", th)
+	if len(d.Warn) != 0 {
+		t.Errorf("unexpected warnings with a covering fallback: %v", d.Warn)
+	}
+	code := d.Items[0].B.(*Code)
+	var faces []*canvas.FontFace
+	for _, r := range code.Lines[0] {
+		faces = append(faces, r.Face)
+		if strings.Contains(r.Text, "你") && covers(th.Mono.Face(th.CodeSize, th.FG), '你') {
+			t.Skip("mono face unexpectedly covers CJK")
+		}
+	}
+	if len(faces) != 3 || faces[0] != faces[2] || faces[0] == faces[1] {
+		t.Errorf("want runs mono/fallback/mono, got %d runs", len(faces))
+	}
+}
+
+// Wide (CJK) characters count as two monospace columns, so a wrapped line
+// never exceeds the column limit and a wide character is never split.
+func TestWrapMonoWideChars(t *testing.T) {
+	line := []Run{{Text: "ab你好世界你好世界cd"}}
+	for _, vis := range wrapMono(line, 8) {
+		if n := runCols(plainText(vis)); n > 8 {
+			t.Errorf("visual line %q is %d columns, limit 8", plainText(vis), n)
+		}
+	}
+	if got := runCols("a你b"); got != 4 {
+		t.Errorf("runCols(a你b) = %d, want 4", got)
+	}
+}

@@ -7,6 +7,7 @@ require (
 	github.com/alecthomas/chroma/v2 v2.27.0
 	github.com/tdewolff/canvas v0.0.0-20260708151538-b3beae08c578
 	github.com/yuin/goldmark v1.8.2
+	golang.org/x/text v0.36.0
 )
 
 require (
@@ -30,7 +31,6 @@ require (
 	github.com/tdewolff/parse/v2 v2.8.12 // indirect
 	golang.org/x/image v0.39.0 // indirect
 	golang.org/x/net v0.53.0 // indirect
-	golang.org/x/text v0.36.0 // indirect
 	modernc.org/knuth v0.5.5 // indirect
 	modernc.org/token v1.1.0 // indirect
 	star-tex.org/x/tex v0.7.1 // indirect
