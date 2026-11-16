@@ -7,6 +7,8 @@ All notable changes to inkcap. The format follows
 ## [Unreleased]
 
 ### Fixed
+- Tight lists and definition lists are followed by block spacing instead of
+  running into the next paragraph (#66).
 - Blockquote bars run unbroken through a quote, each nesting level gets its
   own bar, lists inside quotes keep it, and adjacent quotes stay separate (#65).
 - Code blocks use the fallback fonts and missing-glyph warning like prose, and

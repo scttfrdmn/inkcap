@@ -404,6 +404,17 @@ func (b *builder) runs(n ast.Node, s style) []Run {
 // blocks
 // ---------------------------------------------------------------------------
 
+// endBlock gives the last item pushed since start at least BlockSpace after
+// it, so a tight list or a definition list (whose items carry only 0.7 mm) is
+// set off from the paragraph that follows, like code and tables are.
+func (b *builder) endBlock(start int) {
+	if len(b.items) > start {
+		if sp, ok := b.items[len(b.items)-1].B.(spacer); ok {
+			sp.ensureAfter(b.t.BlockSpace)
+		}
+	}
+}
+
 func (b *builder) push(blk Block, indent float64, bars []Bar, m *Marker) {
 	b.items = append(b.items, Item{B: blk, Indent: indent, Bars: bars, Marker: m})
 }
@@ -507,7 +518,11 @@ func (b *builder) block(n ast.Node, indent float64, bars []Bar, marker *Marker, 
 		b.blocks(v, indent+t.IndentStep, inner, marker, depth)
 
 	case *ast.List:
+		start := len(b.items)
 		b.list(v, indent, bars, depth+1)
+		if depth == 0 {
+			b.endBlock(start) // a nested list ends inside its item: keep it tight
+		}
 
 	case *ast.ListItem:
 		b.blocks(v, indent, bars, marker, depth)
@@ -519,7 +534,11 @@ func (b *builder) block(n ast.Node, indent float64, bars []Bar, marker *Marker, 
 		b.table(v, indent, bars, marker)
 
 	case *xast.DefinitionList:
+		start := len(b.items)
 		b.blocks(v, indent, bars, marker, depth)
+		if depth == 0 {
+			b.endBlock(start)
+		}
 
 	case *xast.DefinitionTerm:
 		// The term is inline content; render it bold and keep it with the

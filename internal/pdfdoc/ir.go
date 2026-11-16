@@ -161,6 +161,16 @@ func (b base) KeepWithNext() bool   { return b.keep }
 // Refs defaults to none; blocks that hold inline runs override it.
 func (b base) Refs(map[*canvas.FontFace]int) []int { return nil }
 
+// ensureAfter raises the block's space after to at least v. Every block embeds
+// base and is used by pointer, so this is reachable through spacer.
+func (b *base) ensureAfter(v float64) {
+	if b.after < v {
+		b.after = v
+	}
+}
+
+type spacer interface{ ensureAfter(float64) }
+
 // refsIn collects, in order, the footnote numbers carried by a run list.
 func refsIn(runs []Run, reg map[*canvas.FontFace]int) []int {
 	var out []int

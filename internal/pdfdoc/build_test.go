@@ -292,3 +292,24 @@ func TestHTMLCommentsAreSilent(t *testing.T) {
 		t.Errorf("warnings = %q, want only the <div> one", d.Warn)
 	}
 }
+
+// A tight list or a definition list is followed by at least BlockSpace, not
+// the 0.7 mm between its own items; a nested list inside an item stays tight.
+func TestSpaceAfterLists(t *testing.T) {
+	th := theme(t, nil)
+	for name, src := range map[string]string{
+		"tight list": "- a\n- b\n\nNext.\n",
+		"ordered":    "1. a\n2. b\n\nNext.\n",
+		"deflist":    "Term\n: Definition\n\nNext.\n",
+	} {
+		items := parse(t, src, th).Items
+		last := items[len(items)-2] // the list's last item, before "Next."
+		if got := last.B.SpaceAfter(); got < th.BlockSpace {
+			t.Errorf("%s: space after the last item = %.1fmm, want >= %.1fmm", name, got, th.BlockSpace)
+		}
+	}
+	items := parse(t, "- outer\n  - inner one\n  - inner two\n- outer two\n", th).Items
+	if got := items[2].B.SpaceAfter(); got >= th.BlockSpace {
+		t.Errorf("nested list end got %.1fmm after it; a nested list should stay tight", got)
+	}
+}
