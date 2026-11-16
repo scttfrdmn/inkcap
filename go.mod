@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/alecthomas/chroma/v2 v2.27.0
-	github.com/scttfrdmn/canvas v0.0.0-20261116171243-99be93616c83
+	github.com/scttfrdmn/canvas v0.0.0-20261116200210-7bae0e9af3ed
 	github.com/yuin/goldmark v1.8.2
 	golang.org/x/text v0.36.0
 )

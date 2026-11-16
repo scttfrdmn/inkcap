@@ -77,6 +77,7 @@ type Theme struct {
 	NumberSects   bool
 	NumberFrom    int
 	TitlePage     bool
+	Math          bool
 	HTML          string
 }
 
@@ -224,6 +225,7 @@ func New(c config.Config) (*Theme, error) {
 		NumberSects:   c.Document.NumberSects,
 		NumberFrom:    c.Document.NumberFrom,
 		TitlePage:     c.Document.TitlePage,
+		Math:          c.Document.Math,
 		HTML:          c.Document.HTML,
 	}
 	if t.LineHeight <= 0 {

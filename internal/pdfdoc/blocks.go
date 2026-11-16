@@ -20,6 +20,11 @@ func buildText(runs []Run, w float64, halign canvas.TextAlign, opts *canvas.Text
 	}
 	rt := canvas.NewRichText(runs[0].Face)
 	for _, r := range runs {
+		if r.Math != nil {
+			rt.SetFace(r.Face)
+			rt.WritePath(r.Math, r.Face.Fill.Color, canvas.Baseline)
+			continue
+		}
 		if r.SVG != nil {
 			rt.SetFace(r.Face)
 			rt.WriteCanvas(r.SVG, canvas.FontMiddle)
@@ -101,7 +106,7 @@ const (
 func lineCuts(runs []Run, lines [][]Run) []int {
 	var src []rune
 	for _, r := range runs {
-		if r.Img != nil || r.SVG != nil {
+		if r.Img != nil || r.SVG != nil || r.Math != nil {
 			return nil
 		}
 		src = append(src, []rune(r.Text)...)
@@ -291,7 +296,7 @@ func (p *Para) Split(w, avail float64) (Block, Block, bool) {
 
 func (p *Para) hasImage() bool {
 	for _, r := range p.Runs {
-		if r.Img != nil || r.SVG != nil {
+		if r.Img != nil || r.SVG != nil || r.Math != nil {
 			return true
 		}
 	}

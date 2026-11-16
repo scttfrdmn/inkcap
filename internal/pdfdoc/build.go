@@ -64,22 +64,23 @@ type Doc struct {
 }
 
 type builder struct {
-	t       *Theme
-	src     []byte
-	base    string // directory for resolving relative image paths
-	items   []Item
-	links   map[*canvas.FontFace]string
-	notes   map[*canvas.FontFace]int
-	body    map[int]Note
-	title   string
-	warn    []string
-	missing map[rune]bool                           // runes already warned about, deduped
-	quotes  int                                     // blockquotes seen, for Bar IDs
-	inTable bool                                    // building table cells: their widths are only known at layout
-	secs    [6]int                                  // section counters, for number_sections
-	ids     map[string]bool                         // heading anchors handed out so far
-	monoFB  map[*canvas.FontFace][]*canvas.FontFace // code fallback faces, per primary
-	targets []string                                // "#..." link targets, checked once all ids exist
+	t         *Theme
+	src       []byte
+	base      string // directory for resolving relative image paths
+	items     []Item
+	links     map[*canvas.FontFace]string
+	notes     map[*canvas.FontFace]int
+	body      map[int]Note
+	title     string
+	warn      []string
+	missing   map[rune]bool                           // runes already warned about, deduped
+	quotes    int                                     // blockquotes seen, for Bar IDs
+	inTable   bool                                    // building table cells: their widths are only known at layout
+	secs      [6]int                                  // section counters, for number_sections
+	mathCache map[string]mathResult                   // typeset formulas, by display|source
+	ids       map[string]bool                         // heading anchors handed out so far
+	monoFB    map[*canvas.FontFace][]*canvas.FontFace // code fallback faces, per primary
+	targets   []string                                // "#..." link targets, checked once all ids exist
 }
 
 // Parse converts markdown source into a block flow.
@@ -91,6 +92,9 @@ func Parse(src []byte, baseDir string, t *Theme) (*Doc, error) {
 	}
 	if t.SmartPunct {
 		exts = append(exts, smartPunct)
+	}
+	if t.Math {
+		exts = append(exts, mathExtension{})
 	}
 	md := goldmark.New(
 		goldmark.WithExtensions(exts...),
@@ -546,6 +550,8 @@ func (b *builder) inline(n ast.Node, s style, out *[]Run) {
 			default:
 				*out = append(*out, b.imageRun(s, m))
 			}
+		case *mathNode:
+			*out = append(*out, b.mathRun(s, v.Src, v.Display)...)
 		case *xast.FootnoteLink:
 			if b.t.Footnotes == "none" {
 				continue
@@ -671,6 +677,13 @@ func (b *builder) block(n ast.Node, indent float64, bars []Bar, marker *Marker, 
 		b.push(h, indent, bars, marker)
 
 	case *ast.Paragraph, *ast.TextBlock:
+		// A paragraph that is only $$...$$ is a display formula.
+		if p, ok := v.(*ast.Paragraph); ok && p.ChildCount() == 1 {
+			if m, ok := p.FirstChild().(*mathNode); ok && m.Display {
+				b.displayMath(m.Src, indent, bars, marker)
+				return
+			}
+		}
 		// A paragraph whose only content is an image, or a link wrapping only
 		// an image ([![alt](fig.png)](url)), becomes a figure.
 		if p, ok := v.(*ast.Paragraph); ok {
@@ -710,7 +723,19 @@ func (b *builder) block(n ast.Node, indent float64, bars []Bar, marker *Marker, 
 
 	case *ast.FencedCodeBlock:
 		lang := string(v.Language(b.src))
+		if lang == "math" && t.Math {
+			var src strings.Builder
+			for i := 0; i < v.Lines().Len(); i++ {
+				seg := v.Lines().At(i)
+				src.Write(seg.Value(b.src))
+			}
+			b.displayMath(strings.TrimSpace(src.String()), indent, bars, marker)
+			return
+		}
 		b.push(b.code(v.Lines(), lang), indent, bars, marker)
+
+	case *mathBlock:
+		b.displayMath(strings.TrimSpace(v.Src.String()), indent, bars, marker)
 
 	case *ast.CodeBlock:
 		b.push(b.code(v.Lines(), ""), indent, bars, marker)
@@ -896,6 +921,19 @@ func (b *builder) sectionNumber(lvl int) string {
 		parts[j] = strconv.Itoa(b.secs[j])
 	}
 	return strings.Join(parts, ".")
+}
+
+// displayMath pushes a display formula: centred on its own, never split.
+func (b *builder) displayMath(src string, indent float64, bars []Bar, marker *Marker) {
+	t := b.t
+	if src == "" {
+		return
+	}
+	b.push(&Para{
+		base:  base{before: t.BlockSpace, after: t.BlockSpace},
+		Runs:  b.mathRun(style{size: t.BodySize}, src, true),
+		Align: canvas.Center, Opts: t.textOpts(), Orphan: 1, Widow: 1,
+	}, indent, bars, marker)
 }
 
 // titlePage puts a cover in front of the document, from front matter with

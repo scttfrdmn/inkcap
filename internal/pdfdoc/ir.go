@@ -22,6 +22,7 @@ type Run struct {
 	Img    image.Image
 	ImgRes canvas.Resolution
 	SVG    *canvas.Canvas
+	Math   *canvas.Path // typeset TeX formula, origin on its baseline, already scaled
 }
 
 // Rctx is threaded through Draw so blocks can register PDF-level features

@@ -7,11 +7,18 @@ All notable changes to inkcap. The format follows
 ## [Unreleased]
 
 ### Fixed
+- The canvas fork (`github.com/scttfrdmn/canvas`) also fixes TeX output going to
+  stdout, formula depth below the baseline, lmroman10's broken `g`, and DVI
+  decoding errors that broke matrices (#13).
 - Footnotes keep their structure: several paragraphs, lists and code blocks
   render in the footnote area and the endnotes instead of being flattened into
   one line with the code dropped (#81).
 
 ### Added
+- Math: `$…$`, `` $`…`$ ``, `$$…$$` and ```` ```math ```` are typeset by canvas's
+  pure-Go TeX engine, with common LaTeX commands and the cases/matrix/aligned
+  environments mapped onto plain TeX. A formula that fails shows its source with
+  a warning; `document.math = false` disables it (#13).
 - Title page: `document.title_page` puts a cover built from front matter (title,
   subtitle, author, date, logo) on page 1, unnumbered, with the TOC after it
   and page numbers counting from the next page (#80).

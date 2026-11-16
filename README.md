@@ -152,6 +152,7 @@ anything left blank.
 | `number_sections` | `false` | prefix headings with `1`, `1.1`, `1.1.1` …; anchors keep the unnumbered slug |
 | `number_from` | `1` | first numbered level; `2` leaves an H1 title unnumbered |
 | `title_page` | `false` | a cover page from front matter (`title`, `subtitle`, `author`, `date`, `logo`); unnumbered, with the TOC after it |
+| `math` | `true` | `$x^2$`, `$$…$$` and ```` ```math ```` as typeset formulas |
 | `html` | `"strip"` | `strip` (keep text, drop tags) \| `drop` (discard) |
 | `image_dpi` | `150` | nominal resolution for figures; raise to shrink them on the page |
 
@@ -267,6 +268,24 @@ exactly this machinery to break an oversized row.
 splice the TOC in, paginate again. The TOC's *height* doesn't depend on the
 numbers it contains, so the second pass is stable; `TestTOCConverges` asserts it
 settles and that every entry's number matches where the heading actually landed.
+
+## Math
+
+GitHub-flavoured Markdown math, typeset by the pure-Go TeX engine inside the
+canvas library (so the binary stays static):
+
+- inline `$x^2$` and `` $`x^2`$ ``; display `$$…$$` (in a paragraph or on lines of
+  its own) and ```` ```math ```` blocks
+- the usual LaTeX/KaTeX commands: `\frac`, `\sqrt`, `\sum`, `\int`, `\lim`, Greek,
+  `\mathrm`, `\mathbf`, `\text`, `\operatorname`, `\left…\right`, and the
+  `cases`, `matrix`/`pmatrix`/`bmatrix`/`vmatrix` and `aligned` environments
+- dollar signs follow GitHub's rules: `$5 and $10` stays text (no space just
+  inside the delimiters, no digit right after the closing one)
+
+The engine is plain TeX, so `\mathbb` is drawn bold (there's no blackboard-bold
+font) and packages beyond these mappings aren't available. A formula TeX can't
+set shows its source in code style, with a warning. `document.math = false` turns
+it off. Formulas use Computer Modern (Latin Modern), not the text font.
 
 ## GitHub alerts
 
