@@ -6,6 +6,10 @@ All notable changes to inkcap. The format follows
 
 ## [Unreleased]
 
+### Added
+- Explicit heading anchors: `## Install {#setup}` sets the anchor that
+  `[x](#setup)` and the TOC link to (#83).
+
 ## [0.6.0] — 2026-11-16
 
 ### Changed

@@ -147,3 +147,28 @@ func TestInternalLinksResolve(t *testing.T) {
 		}
 	}
 }
+
+// "## Install {#setup}" sets the heading's anchor explicitly; the attribute
+// text is not rendered, and [x](#setup) resolves without a warning.
+func TestExplicitHeadingID(t *testing.T) {
+	th := theme(t, nil)
+	d := parse(t, "# Doc\n\nSee [setup](#setup).\n\n## Install it {#setup}\n\n## Other {.class}\n", th)
+	var ids, plains []string
+	for _, it := range d.Items {
+		if h, ok := it.B.(*Heading); ok {
+			ids = append(ids, h.ID)
+			plains = append(plains, h.Plain)
+		}
+	}
+	if strings.Join(ids, " ") != "doc setup other" {
+		t.Errorf("ids = %q, want [doc setup other]", ids)
+	}
+	for _, p := range plains {
+		if strings.Contains(p, "{") {
+			t.Errorf("attribute text rendered in heading %q", p)
+		}
+	}
+	if len(d.Warn) != 0 {
+		t.Errorf("unexpected warnings: %v", d.Warn)
+	}
+}

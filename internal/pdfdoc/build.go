@@ -29,6 +29,7 @@ import (
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
 	xast "github.com/yuin/goldmark/extension/ast"
+	"github.com/yuin/goldmark/parser"
 	gmhtml "github.com/yuin/goldmark/renderer/html"
 	"github.com/yuin/goldmark/text"
 )
@@ -65,11 +66,16 @@ type builder struct {
 
 // Parse converts markdown source into a block flow.
 func Parse(src []byte, baseDir string, t *Theme) (*Doc, error) {
-	md := goldmark.New(goldmark.WithExtensions(
-		extension.GFM, // tables, strikethrough, autolinks, task lists
-		extension.Footnote,
-		extension.DefinitionList,
-	))
+	md := goldmark.New(
+		goldmark.WithExtensions(
+			extension.GFM, // tables, strikethrough, autolinks, task lists
+			extension.Footnote,
+			extension.DefinitionList,
+		),
+		// "## Install {#setup}": an explicit heading id, as in Pandoc,
+		// kramdown and most static-site generators.
+		goldmark.WithParserOptions(parser.WithAttribute()),
+	)
 	meta, src, err := splitFrontMatter(src)
 	if err != nil {
 		return nil, err
@@ -613,7 +619,7 @@ func (b *builder) block(n ast.Node, indent float64, bars []Bar, marker *Marker, 
 		}
 		h := &Heading{
 			base:  base{before: t.HeadSpaceHi[lvl-1], after: t.HeadSpaceLo[lvl-1], keep: true},
-			Level: lvl, Runs: runs, Plain: plain, ID: b.anchorID(plain),
+			Level: lvl, Runs: runs, Plain: plain, ID: b.headingID(v, plain),
 			Opts: t.textOpts(), Rule: lvl <= t.HeadingRules, T: t,
 		}
 		b.push(h, indent, bars, marker)
@@ -782,6 +788,22 @@ func (b *builder) anchorID(plain string) string {
 	}
 	b.ids[id] = true
 	return id
+}
+
+// headingID is the heading's explicit {#id} if it has one, else the
+// GitHub-style slug of its text.
+func (b *builder) headingID(h *ast.Heading, plain string) string {
+	if v, ok := h.AttributeString("id"); ok {
+		if raw, ok := v.([]byte); ok && len(raw) > 0 {
+			id := string(raw)
+			if b.ids == nil {
+				b.ids = map[string]bool{}
+			}
+			b.ids[id] = true
+			return id
+		}
+	}
+	return b.anchorID(plain)
 }
 
 // checkTargets warns, once per name, about "#name" links with no heading of

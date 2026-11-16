@@ -278,6 +278,7 @@ External links become URI annotations. Every heading also gets a GitHub-style
 anchor (`## Getting Started` → `#getting-started`, repeats get `-1`, `-2`…), so
 in-document links written for GitHub — `[setup](#getting-started)` — jump to the
 heading in the PDF, and every table-of-contents entry is a link to its heading.
+An explicit `{#id}` after a heading (`## Install {#setup}`) overrides the slug.
 A `#name` link with no matching heading is reported on stderr.
 
 ## Footnotes
