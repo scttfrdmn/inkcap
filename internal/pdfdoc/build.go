@@ -69,6 +69,9 @@ func Parse(src []byte, baseDir string, t *Theme) (*Doc, error) {
 		body:  map[int]Note{},
 	}
 	b.blocks(root, 0, false, nil, 0)
+	if len(b.items) == 0 {
+		b.warn = append(b.warn, "input has no content")
+	}
 	b.checkTargets()
 	return &Doc{
 		Items: b.items, Links: b.links, Notes: b.notes, Body: b.body,
