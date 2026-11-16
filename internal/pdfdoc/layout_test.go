@@ -582,3 +582,49 @@ func TestBlockFootnotes(t *testing.T) {
 		}
 	}
 }
+
+// title_page puts a cover built from front matter on page 1 alone; the TOC
+// follows the cover and its numbers count from the page after it.
+func TestTitlePage(t *testing.T) {
+	th := theme(t, func(c *config.Config) { c.Document.TitlePage = true; c.Document.TOC = true })
+	src := "---\ntitle: The Report\nsubtitle: A subtitle\nauthor: Jane Doe\ndate: 2026-11-16\n---\n\n# Intro\n\nText.\n\n## Part\n\nMore.\n"
+	d := parse(t, src, th)
+	tp, ok := d.Items[0].B.(*TitlePage)
+	if !ok {
+		t.Fatalf("first item is %T, want *TitlePage", d.Items[0].B)
+	}
+	if tp.Title != "The Report" || tp.Subtitle != "A subtitle" || tp.Author != "Jane Doe" || tp.Date != "2026-11-16" {
+		t.Errorf("cover = %+v", tp)
+	}
+	items := spliceTOC(d.Items, d.buildTOC(d.paginate(d.Items)))
+	pages := d.paginate(items)
+	if len(pages[0].Items) != 1 {
+		t.Errorf("cover page holds %d items, want only the cover", len(pages[0].Items))
+	}
+	if d.coverPages(pages) != 1 {
+		t.Error("coverPages != 1")
+	}
+	// The TOC opens the page after the cover, and "Intro" is numbered from
+	// that page as 1.
+	if h, ok := pages[1].Items[0].It.B.(*Heading); !ok || !h.fromTOC {
+		t.Errorf("page 2 starts with %T, want the Contents heading", pages[1].Items[0].It.B)
+	}
+	for _, it := range d.buildTOC(pages) {
+		if l, ok := it.B.(*TocLine); ok && plainText(l.runs()) == "Intro" && l.Page != 1 {
+			t.Errorf("TOC lists Intro on page %d, want 1 (cover unnumbered)", l.Page)
+		}
+	}
+	var buf bytes.Buffer
+	if err := d.Render(&buf, ""); err != nil {
+		t.Fatal(err)
+	}
+	// Without a title anywhere there is no cover, and it says so.
+	d = parse(t, "Just text.\n", th)
+	if _, ok := d.Items[0].B.(*TitlePage); ok || len(d.Warn) == 0 {
+		t.Errorf("no title: got a cover or no warning (%v)", d.Warn)
+	}
+	// Off by default.
+	if _, ok := parse(t, src, theme(t, nil)).Items[0].B.(*TitlePage); ok {
+		t.Error("cover added with title_page off")
+	}
+}

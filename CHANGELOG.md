@@ -12,6 +12,9 @@ All notable changes to inkcap. The format follows
   one line with the code dropped (#81).
 
 ### Added
+- Title page: `document.title_page` puts a cover built from front matter (title,
+  subtitle, author, date, logo) on page 1, unnumbered, with the TOC after it
+  and page numbers counting from the next page (#80).
 - GitHub alerts: `> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`
   render with a coloured bar and bold label (colours in `[colors]`) (#77).
 - HTML `<img>`: a block of only images renders local ones as figures (alt as

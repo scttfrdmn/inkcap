@@ -2,6 +2,7 @@ package pdfdoc
 
 import (
 	"image"
+	"image/color"
 	"strconv"
 	"strings"
 
@@ -822,3 +823,68 @@ func (pb *PageBreak) Split(w, avail float64) (Block, Block, bool) {
 	return pb, nil, true
 }
 func (*PageBreak) Draw(*Rctx, float64, float64, float64) {}
+
+// TitlePage is a cover: title, subtitle, author, date and an optional logo,
+// centred on a page of their own. It measures as a whole page, so the
+// paginator gives it page 1 alone; the page gets no running header or folio,
+// and page numbering starts after it.
+type TitlePage struct {
+	base
+	Title, Subtitle, Author, Date string
+	Logo                          *Image // nil without a logo
+	T                             *Theme
+}
+
+func (tp *TitlePage) Measure(float64) float64 { return tp.T.ContentH() }
+func (tp *TitlePage) Split(w, avail float64) (Block, Block, bool) {
+	return atomicSplit(tp, w, avail)
+}
+
+// lines is the cover's text, top to bottom: (runs, gap after in mm).
+func (tp *TitlePage) lines() [][]Run {
+	t := tp.T
+	var out [][]Run
+	add := func(txt string, size float64, col color.RGBA, st canvas.FontStyle) {
+		if txt != "" {
+			out = append(out, []Run{{Face: t.Text.Face(size, col, st), Text: txt}})
+		}
+	}
+	add(tp.Title, t.HeadSize[0]*1.5, t.FG, canvas.FontBold)
+	add(tp.Subtitle, t.HeadSize[1], t.Muted, canvas.FontRegular)
+	add(tp.Author, t.BodySize*1.15, t.FG, canvas.FontRegular)
+	add(tp.Date, t.BodySize, t.Muted, canvas.FontRegular)
+	return out
+}
+
+func (tp *TitlePage) Draw(r *Rctx, x, y, w float64) {
+	t := tp.T
+	gap := 4.0
+	var texts []*canvas.Text
+	h := 0.0
+	logoH := 0.0
+	if tp.Logo != nil {
+		_, logoH = tp.Logo.dims(w)
+		h += logoH + 3*gap
+	}
+	for i, ln := range tp.lines() {
+		txt := buildText(ln, w, canvas.Center, t.textOpts())
+		texts = append(texts, txt)
+		h += txt.Height
+		if i > 0 {
+			h += gap
+		}
+	}
+	// optically centred: a little above the middle of the page
+	cy := y + (t.ContentH()-h)*0.4
+	if tp.Logo != nil {
+		tp.Logo.Draw(r, x, cy, w)
+		cy += logoH + 3*gap
+	}
+	for i, txt := range texts {
+		if i > 0 {
+			cy += gap
+		}
+		r.C.DrawText(x, cy, txt)
+		cy += txt.Height
+	}
+}

@@ -113,6 +113,9 @@ func Parse(src []byte, baseDir string, t *Theme) (*Doc, error) {
 	b.title = meta.Title // front matter wins over the first H1
 	b.blocks(root, 0, nil, nil, 0)
 	b.checkTargets()
+	if t.TitlePage {
+		b.titlePage(meta)
+	}
 	if len(b.items) == 0 && len(b.body) == 0 {
 		b.warn = append(b.warn, "the input has no content; the PDF is a blank page")
 	}
@@ -893,6 +896,29 @@ func (b *builder) sectionNumber(lvl int) string {
 		parts[j] = strconv.Itoa(b.secs[j])
 	}
 	return strings.Join(parts, ".")
+}
+
+// titlePage puts a cover in front of the document, from front matter with
+// the first H1 as the fallback title. Without any title there is no cover.
+func (b *builder) titlePage(meta Meta) {
+	title := meta.Title
+	if title == "" {
+		title = b.title
+	}
+	if title == "" {
+		b.warn = append(b.warn, "title_page: no title in front matter and no heading; no cover page")
+		return
+	}
+	tp := &TitlePage{Title: title, Subtitle: meta.Subtitle, Author: meta.Author, Date: meta.Date, T: b.t}
+	if meta.Logo != "" {
+		if m, c, ok := b.loadAny(meta.Logo); ok {
+			tp.Logo = &Image{Img: m, SVG: c, T: b.t}
+			if w, h := tp.Logo.dims(b.t.ContentW()); h > 40 { // logos stay modest
+				tp.Logo.WidthMM = w * 40 / h
+			}
+		}
+	}
+	b.items = append([]Item{{B: tp}}, b.items...)
 }
 
 // noteTheme is the theme footnote content is built with: everything at the

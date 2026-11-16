@@ -14,7 +14,9 @@ type Meta struct {
 	Author   string // several authors are joined with ", "
 	Subject  string // `subject`, or `description` as a fallback
 	Keywords string // several keywords are joined with ", "
-	Date     string // kept as written; used by the title page (#80)
+	Date     string // kept as written; shown on the title page
+	Subtitle string // title page only
+	Logo     string // image path for the title page, relative to the document
 }
 
 // fmKeyRe matches a top-level YAML mapping key: "key:" at column zero.
@@ -157,6 +159,8 @@ func metaFrom(vals map[string][]string) Meta {
 		Subject:  join("subject", "description"),
 		Keywords: join("keywords", "tags"),
 		Date:     join("date"),
+		Subtitle: join("subtitle"),
+		Logo:     join("logo"),
 	}
 }
 

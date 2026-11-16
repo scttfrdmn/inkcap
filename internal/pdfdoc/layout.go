@@ -299,7 +299,7 @@ func (d *Doc) buildTOC(pages []Page) []Item {
 					base:  base{after: 0.6},
 					Level: h.Level,
 					Runs:  withoutRefs(h.Runs, d.Notes),
-					Page:  i + 1,
+					Page:  i + 1 - d.coverPages(pages),
 					ID:    h.ID,
 					T:     t,
 				},
@@ -336,6 +336,12 @@ func spliceTOC(items, toc []Item) []Item {
 	}
 	at := 0
 	if len(items) > 0 {
+		if _, ok := items[0].B.(*TitlePage); ok {
+			// The cover is the title: the contents come straight after it,
+			// before the first heading.
+			out := append([]Item{items[0]}, toc...)
+			return append(out, items[1:]...)
+		}
 		if h, ok := items[0].B.(*Heading); ok && h.Level == 1 {
 			at = 1
 			// keep any lead paragraph with the title (up to the next heading
@@ -436,7 +442,10 @@ func (d *Doc) Render(w io.Writer, title string) error {
 			d.paint(r, pl)
 		}
 		d.drawNotes(r, page.Notes)
-		d.decorate(r, i+1, len(pages), title)
+		if cover := d.coverPages(pages); i >= cover {
+			// the cover is unnumbered; numbering starts after it
+			d.decorate(r, i+1-cover, len(pages)-cover, title, i > 0)
+		}
 	}
 	return p.Close()
 }
@@ -617,12 +626,24 @@ func (d *Doc) drawNotes(r *Rctx, ids []int) {
 	}
 }
 
-// decorate paints the running header and the folio.
-func (d *Doc) decorate(r *Rctx, page, total int, title string) {
+// coverPages is 1 if the document opens with a title page, else 0.
+func (d *Doc) coverPages(pages []Page) int {
+	if len(pages) > 0 && len(pages[0].Items) > 0 {
+		if _, ok := pages[0].Items[0].It.B.(*TitlePage); ok {
+			return 1
+		}
+	}
+	return 0
+}
+
+// decorate paints the running header and the folio. page and total are the
+// displayed numbers (after any cover); header says whether this page gets the
+// running header (every page after the document's first).
+func (d *Doc) decorate(r *Rctx, page, total int, title string, header bool) {
 	t := d.T
 	small := t.Text.Face(t.SmallSize, t.Muted)
 
-	if t.RunningHeader && page > 1 && title != "" {
+	if t.RunningHeader && header && title != "" {
 		ht := buildText([]Run{{Face: small, Text: title}}, t.ContentW(), canvas.Left, t.textOpts())
 		r.C.DrawText(t.MarginLeft, t.MarginTop-t.FooterGap, ht)
 		r.C.SetStrokeColor(t.Rule)

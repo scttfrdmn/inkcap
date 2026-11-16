@@ -151,6 +151,7 @@ anything left blank.
 | `h1_new_page` | `false` | start each H1 after the first on a new page |
 | `number_sections` | `false` | prefix headings with `1`, `1.1`, `1.1.1` …; anchors keep the unnumbered slug |
 | `number_from` | `1` | first numbered level; `2` leaves an H1 title unnumbered |
+| `title_page` | `false` | a cover page from front matter (`title`, `subtitle`, `author`, `date`, `logo`); unnumbered, with the TOC after it |
 | `html` | `"strip"` | `strip` (keep text, drop tags) \| `drop` (discard) |
 | `image_dpi` | `150` | nominal resolution for figures; raise to shrink them on the page |
 
@@ -287,7 +288,8 @@ from the output. `title`, `author`/`authors`, `subject`/`description`,
 `keywords`/`tags` and `date` are read from it; lists are joined with commas.
 `title` sets the PDF title and running header (`-title` still wins, then front
 matter, then the first heading), and author, subject and keywords go into the
-PDF's document properties. Other keys are ignored. A document that merely opens
+PDF's document properties. With `title_page = true`, `title`, `subtitle`, `author`,
+`date` and `logo` (an image path) make a cover page. Other keys are ignored. A document that merely opens
 with a `---` rule followed by a blank line or prose is left alone.
 
 ## Links

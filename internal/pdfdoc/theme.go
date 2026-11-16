@@ -76,6 +76,7 @@ type Theme struct {
 	H1NewPage     bool
 	NumberSects   bool
 	NumberFrom    int
+	TitlePage     bool
 	HTML          string
 }
 
@@ -222,6 +223,7 @@ func New(c config.Config) (*Theme, error) {
 		H1NewPage:     c.Document.H1NewPage,
 		NumberSects:   c.Document.NumberSects,
 		NumberFrom:    c.Document.NumberFrom,
+		TitlePage:     c.Document.TitlePage,
 		HTML:          c.Document.HTML,
 	}
 	if t.LineHeight <= 0 {

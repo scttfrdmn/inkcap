@@ -113,6 +113,7 @@ type Document struct {
 	H1NewPage     bool    `toml:"h1_new_page"`     // start each H1 after the first on a new page
 	NumberSects   bool    `toml:"number_sections"` // prefix headings with 1, 1.1, 1.1.1 ...
 	NumberFrom    int     `toml:"number_from"`     // first numbered level; 2 leaves the H1 title unnumbered
+	TitlePage     bool    `toml:"title_page"`      // a cover page from front matter (title, subtitle, author, date, logo)
 	HTML          string  `toml:"html"`            // strip | drop
 	ImageDPI      float64 `toml:"image_dpi"`       // nominal resolution for figures; higher = smaller on the page
 }
@@ -434,6 +435,7 @@ running_header = true
 h1_new_page    = false    # start each top-level heading (after the first) on a new page
 number_sections = false   # prefix headings with 1, 1.1, 1.1.1 ...
 number_from    = 1        # first numbered heading level; 2 leaves an H1 title unnumbered
+title_page     = false    # cover page from front matter: title, subtitle, author, date, logo
 html           = "strip"  # strip: keep the text, drop the tags. drop: discard.
 image_dpi      = 150      # nominal image resolution; raise to shrink figures
 
