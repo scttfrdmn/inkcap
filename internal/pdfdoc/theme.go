@@ -32,7 +32,11 @@ type Theme struct {
 	CodeSize   float64
 	SmallSize  float64
 	HeadSize   [6]float64
-	LineHeight float64
+	LineHeight float64 // line pitch as a multiple of the font size (CSS line-height)
+	// lineStretch converts LineHeight into canvas's LineStretch, which is
+	// relative to the font's own natural line height (about 1.43x the size for
+	// IBM Plex Serif), so line_height means the same thing for any font.
+	lineStretch float64
 
 	ParaSpace   float64
 	HeadSpaceHi [6]float64
@@ -207,6 +211,12 @@ func New(c config.Config) (*Theme, error) {
 		RunningHeader: c.Document.RunningHeader,
 		HTML:          c.Document.HTML,
 	}
+	if t.LineHeight <= 0 {
+		t.LineHeight = 1.5
+	}
+	if natural := t.Text.Face(t.BodySize, t.FG).Metrics().LineHeight / pt(t.BodySize); natural > 0 {
+		t.lineStretch = t.LineHeight/natural - 1
+	}
 	if t.TabWidth <= 0 {
 		t.TabWidth = 4
 	}
@@ -234,7 +244,7 @@ func (t *Theme) bodyAlign() canvas.TextAlign {
 
 func (t *Theme) textOpts() *canvas.TextOptions {
 	return &canvas.TextOptions{
-		LineStretch: t.LineHeight,
+		LineStretch: t.lineStretch,
 		Linebreaker: canvas.KnuthLinebreaker{},
 	}
 }
@@ -248,5 +258,5 @@ func (t *Theme) monoOpts() *canvas.TextOptions {
 
 // bodyLine is the height of one line of body text.
 func (t *Theme) bodyLine() float64 {
-	return t.Text.Face(t.BodySize, t.FG).Metrics().LineHeight * (1 + t.LineHeight)
+	return t.Text.Face(t.BodySize, t.FG).Metrics().LineHeight * (1 + t.lineStretch)
 }

@@ -6,6 +6,13 @@ All notable changes to inkcap. The format follows
 
 ## [Unreleased]
 
+### Changed
+- **Breaking:** `typography.line_height` is now a multiple of the font size,
+  like CSS `line-height`, with a default of `1.5` (GitHub's). It used to mean
+  extra leading over the font's natural spacing, and the 0.42 default set
+  lines about 2.04x apart, which read as double-spaced. Values below 1 are
+  rejected with an error explaining the change. Documents get shorter (#71).
+
 ### Fixed
 - Link text and code are shaped without ligatures, so URLs and code copy out
   of the PDF as typed; invisible characters (U+FE0F, joiners) no longer warn;

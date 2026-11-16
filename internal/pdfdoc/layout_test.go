@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/scttfrdmn/inkcap/internal/config"
+	"github.com/tdewolff/canvas"
 )
 
 func theme(t *testing.T, tweak func(*config.Config)) *Theme {
@@ -450,5 +451,24 @@ func TestFootnoteOverflowContinues(t *testing.T) {
 	}
 	if len(pages) < 3 {
 		t.Fatalf("only %d pages; the notes didn't need to continue (vacuous)", len(pages))
+	}
+}
+
+// line_height is a multiple of the font size, like CSS: at the default 1.5,
+// baselines of body text are 1.5 x 10.5pt apart. It used to mean extra leading
+// over the font's natural spacing, which set lines about 2x apart.
+func TestLineHeightIsMultipleOfSize(t *testing.T) {
+	for _, lh := range []float64{1.5, 1.2} {
+		th := theme(t, func(c *config.Config) { c.Type.LineHeight = lh })
+		f := th.Text.Face(th.BodySize, th.FG)
+		one := buildText([]Run{{Face: f, Text: "x"}}, 0, canvas.Left, th.textOpts()).Height
+		two := buildText([]Run{{Face: f, Text: "x\nx"}}, 0, canvas.Left, th.textOpts()).Height
+		want := pt(th.BodySize) * lh
+		if pitch := two - one; pitch < want*0.98 || pitch > want*1.02 {
+			t.Errorf("line_height %v: pitch %.2fmm, want %.2fmm (%.2fx size)", lh, pitch, want, pitch/pt(th.BodySize))
+		}
+		if bl := th.bodyLine(); bl < want*0.98 || bl > want*1.02 {
+			t.Errorf("line_height %v: bodyLine %.2fmm, want %.2fmm", lh, bl, want)
+		}
 	}
 }

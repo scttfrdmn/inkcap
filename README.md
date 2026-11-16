@@ -97,7 +97,7 @@ anything left blank.
 | `code_size` | `9` | code blocks, points |
 | `small_size` | `8.5` | footnotes, captions, folios, points |
 | `heading_sizes` | `[20, 15.5, 13, 11.5, 10.5, 10]` | H1..H6, points |
-| `line_height` | `0.42` | extra leading, as a fraction of natural leading |
+| `line_height` | `1.5` | line spacing as a multiple of the font size, like CSS `line-height` (1–4) |
 | `justify` | `true` | justify body text |
 | `orphans` | `2` | min lines left at the foot of a page |
 | `widows` | `2` | min lines carried to the next page |

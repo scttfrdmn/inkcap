@@ -49,6 +49,8 @@ func TestValidateRejects(t *testing.T) {
 		{"zero body size", func(c *Config) { c.Type.BodySize = 0 }, "typography.body_size"},
 		{"zero heading size", func(c *Config) { c.Type.HeadingSizes[2] = 0 }, "H3"},
 		{"negative leading", func(c *Config) { c.Type.LineHeight = -0.1 }, "typography.line_height"},
+		{"old-style leading", func(c *Config) { c.Type.LineHeight = 0.42 }, "multiple of the font size"},
+		{"huge leading", func(c *Config) { c.Type.LineHeight = 5 }, "typography.line_height"},
 		{"negative widows", func(c *Config) { c.Type.Widows = -1 }, "widows"},
 		{"heading_rules 7", func(c *Config) { c.Type.HeadingRules = 7 }, "typography.heading_rules"},
 		{"negative indent", func(c *Config) { c.Spacing.Indent = -2 }, "spacing.indent"},
@@ -84,6 +86,7 @@ func TestValidateAccepts(t *testing.T) {
 		"no rules":       func(c *Config) { c.Type.HeadingRules = 0 },
 		"default dpi":    func(c *Config) { c.Document.ImageDPI = 0 },
 		"no orphan rule": func(c *Config) { c.Type.Orphans, c.Type.Widows = 0, 0 },
+		"tight leading":  func(c *Config) { c.Type.LineHeight = 1.2 },
 	} {
 		c := Default()
 		tweak(&c)

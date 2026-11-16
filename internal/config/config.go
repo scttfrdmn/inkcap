@@ -62,7 +62,7 @@ type Typography struct {
 	CodeSize     float64    `toml:"code_size"`     // points
 	SmallSize    float64    `toml:"small_size"`    // points
 	HeadingSizes [6]float64 `toml:"heading_sizes"` // points, H1..H6
-	LineHeight   float64    `toml:"line_height"`   // extra leading, 0.42 = +42%
+	LineHeight   float64    `toml:"line_height"`   // line pitch as a multiple of the font size, like CSS: 1.5
 	Justify      bool       `toml:"justify"`
 	Orphans      int        `toml:"orphans"`
 	Widows       int        `toml:"widows"`
@@ -117,7 +117,7 @@ func Default() Config {
 		Type: Typography{
 			BodySize: 10.5, CodeSize: 9, SmallSize: 8.5,
 			HeadingSizes: [6]float64{20, 15.5, 13, 11.5, 10.5, 10},
-			LineHeight:   0.42,
+			LineHeight:   1.5,
 			Justify:      true,
 			Orphans:      2,
 			Widows:       2,
@@ -253,8 +253,14 @@ func (c Config) Validate() error {
 			return fmt.Errorf("typography.heading_sizes[%d] (H%d): must be > 0, got %v", i, i+1, v)
 		}
 	}
-	if c.Type.LineHeight < 0 {
-		return fmt.Errorf("typography.line_height: must be >= 0, got %v", c.Type.LineHeight)
+	if lh := c.Type.LineHeight; lh < 1 || lh > 4 {
+		hint := ""
+		if lh >= 0 && lh < 1 {
+			// Before v0.6.0 this key was extra leading over the font's
+			// natural spacing (default 0.42, which set lines 2.04x apart).
+			hint = "; it is now a multiple of the font size like CSS line-height (default 1.5). The old meaning (extra leading, e.g. 0.42) no longer applies"
+		}
+		return fmt.Errorf("typography.line_height: want 1..4, got %v%s", lh, hint)
 	}
 	if c.Type.Orphans < 0 || c.Type.Widows < 0 {
 		return fmt.Errorf("typography: orphans and widows must be >= 0, got %d and %d", c.Type.Orphans, c.Type.Widows)
@@ -365,7 +371,7 @@ body_size     = 10.5
 code_size     = 9
 small_size    = 8.5
 heading_sizes = [20, 15.5, 13, 11.5, 10.5, 10]   # H1..H6
-line_height   = 0.42    # extra leading, as a fraction of the natural leading
+line_height   = 1.5     # line spacing as a multiple of the font size, like CSS
 justify       = true
 orphans       = 2       # min lines left at the foot of a page
 widows        = 2       # min lines carried to the next page
