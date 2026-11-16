@@ -7,6 +7,8 @@ All notable changes to inkcap. The format follows
 ## [Unreleased]
 
 ### Fixed
+- A chain of headings (H2, H3, H4 in a row) is no longer stranded at the foot
+  of a page (#63).
 - HTML comments, `<!DOCTYPE>` and `<?…?>` are dropped silently; a multi-line
   comment no longer prints its contents or warns as a dropped tag (#62).
 - YAML/TOML front matter is stripped instead of rendering as a rule and a

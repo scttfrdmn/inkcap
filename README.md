@@ -233,7 +233,7 @@ says so by returning `(nil, self, true)` — "put me on the next page".
 | `Para` | line boundaries | orphans ≥ 2, widows ≥ 2 (configurable), else move whole |
 | `Code` | source-line boundaries | never mid-wrap, so numbering stays honest; ≥ 3 kept, ≥ 2 carried |
 | `Table` | body-row boundaries | header repeats; a row taller than a page is broken *inside*, cell by cell |
-| `Heading` | never | `KeepWithNext`: won't be left alone at the foot of a page |
+| `Heading` | never | `KeepWithNext`: won't be left alone at the foot of a page; a run of headings moves as one |
 | `TocLine`, `Rule`, `Image` | never | move whole |
 
 Because `Split` also splits a block's `Refs`, footnote placement follows
@@ -316,7 +316,7 @@ distinct dropped tag is reported once on stderr — no more silent mangling.
 `go test ./...` asserts the invariants that matter, and they are
 mutation-checked (break the code, watch them fail):
 
-- a heading is never the last thing on a page
+- a heading, or a chain of headings, is never the last thing on a page
 - no paragraph fragment is shorter than the orphan/widow thresholds
 - nothing is laid out past the bottom margin, footnote area included
 - every footnote lands on the page that references it

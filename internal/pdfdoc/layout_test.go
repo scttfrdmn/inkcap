@@ -52,6 +52,38 @@ func TestHeadingNeverStranded(t *testing.T) {
 	}
 }
 
+// A chain of headings (H2, H3, H4 with nothing between them) must travel
+// together with the start of its body: no page may end with any of them. The
+// keep-with-next check used to look only one item ahead.
+func TestHeadingChainNeverStranded(t *testing.T) {
+	th := theme(t, nil)
+	hits := 0
+	for n := 10; n <= 45; n++ {
+		var sb strings.Builder
+		sb.WriteString("# Doc\n\n")
+		for i := 0; i < n; i++ {
+			sb.WriteString("Paragraph filler text to take up vertical space on the page.\n\n")
+		}
+		sb.WriteString("## Section Two\n\n### Sub Three\n\n#### Deep Four\n\nFinal paragraph.\n")
+		d := parse(t, sb.String(), th)
+		pages := d.paginate(d.Items)
+		if len(pages) > 1 {
+			hits++
+		}
+		for i, p := range pages {
+			if len(p.Items) == 0 {
+				continue
+			}
+			if h, ok := p.Items[len(p.Items)-1].It.B.(*Heading); ok {
+				t.Errorf("n=%d: page %d ends with heading %q", n, i+1, h.Plain)
+			}
+		}
+	}
+	if hits == 0 {
+		t.Fatal("no case crossed a page; test is vacuous")
+	}
+}
+
 // Paragraph fragments must respect the orphan and widow thresholds.
 func TestOrphansAndWidows(t *testing.T) {
 	th := theme(t, nil)

@@ -122,8 +122,8 @@ func (d *Doc) paginate(items []Item) []Page {
 
 		h := it.B.Measure(w)
 		need := h
-		if it.B.KeepWithNext() && len(queue) > 1 {
-			need += it.B.SpaceAfter() + min(keepMin, queue[1].height(contentW))
+		if it.B.KeepWithNext() {
+			need += keepRun(queue, contentW, keepMin)
 		}
 
 		if need <= avail {
@@ -173,6 +173,23 @@ func (d *Doc) paginate(items []Item) []Page {
 		pages = append(pages, cur)
 	}
 	return pages
+}
+
+// keepRun is the extra height that queue[0], a keep-with-next block, drags
+// onto its page: its space after, then every following keep-with-next block in
+// full (a chain like "## A" / "### B" / "#### C" must travel together), then
+// the first keepMin of the block the chain is kept with. Looking only one item
+// ahead let a chain of headings be stranded at the foot of a page.
+func keepRun(queue []Item, contentW, keepMin float64) float64 {
+	extra := queue[0].B.SpaceAfter()
+	for j := 1; j < len(queue); j++ {
+		next := queue[j]
+		if !next.B.KeepWithNext() {
+			return extra + next.B.SpaceBefore() + min(keepMin, next.height(contentW))
+		}
+		extra += next.B.SpaceBefore() + next.height(contentW) + next.B.SpaceAfter()
+	}
+	return extra
 }
 
 // ---------------------------------------------------------------------------
