@@ -327,6 +327,12 @@ func (b *builder) inline(n ast.Node, s style, out *[]Run) {
 		case *ast.AutoLink:
 			ls := s
 			u := string(v.URL(b.src))
+			// Email autolinks need the mailto: scheme so PDF viewers treat them as
+			// email links rather than relative file paths. Matches goldmark's HTML
+			// renderer behaviour.
+			if v.AutoLinkType == ast.AutoLinkEmail && !strings.HasPrefix(strings.ToLower(u), "mailto:") {
+				u = "mailto:" + u
+			}
 			ls.link = u
 			b.emit(ls, string(v.Label(b.src)), out)
 		case *ast.Image:
