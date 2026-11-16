@@ -513,7 +513,7 @@ func (b *builder) block(n ast.Node, indent float64, bars []Bar, marker *Marker, 
 
 	case *ast.List:
 		start := len(b.items)
-		b.list(v, indent, bars, depth+1)
+		b.list(v, indent, bars, depth+1, marker)
 		if depth == 0 {
 			b.endBlock(start) // a nested list ends inside its item: keep it tight
 		}
@@ -683,19 +683,38 @@ func (b *builder) warnHTML(raw string) {
 	}
 }
 
-func (b *builder) list(v *ast.List, indent float64, bars []Bar, depth int) {
+func (b *builder) list(v *ast.List, indent float64, bars []Bar, depth int, outer *Marker) {
 	t := b.t
+	ms := style{size: t.BodySize, color: colFG}
+	delim := "."
+	if v.Marker == ')' {
+		delim = ")"
+	}
+
+	// An ordered list widens its own indent to fit its widest label, so
+	// "100." doesn't stick out into the margin.
+	step := t.IndentStep
+	if v.IsOrdered() {
+		f := b.face(ms)
+		last := v.Start + v.ChildCount() - 1
+		for _, n := range []int{v.Start, last} {
+			if w := f.TextWidth(strconv.Itoa(n)+delim) + 1.6 + 1.0; w > step {
+				step = w
+			}
+		}
+	}
+
 	i := v.Start // goldmark sets this for every ordered list; 0 is a real start
 	for li := v.FirstChild(); li != nil; li = li.NextSibling() {
 		var label string
 		if v.IsOrdered() {
-			label = strconv.Itoa(i) + "."
+			label = strconv.Itoa(i) + delim
 			i++
 		} else {
 			label = markerGlyph(depth)
 		}
-		ms := style{size: t.BodySize, color: colFG}
-		mk := &Marker{Text: label, Face: b.face(ms)}
+		mk := &Marker{Text: label, Face: b.face(ms), Step: step, Outer: outer}
+		outer = nil // only the first item sits on the enclosing item's line
 		if label == "\u25e6" {
 			mk.Shape = ShapeRing
 		}
@@ -716,8 +735,29 @@ func (b *builder) list(v *ast.List, indent float64, bars []Bar, depth int) {
 		if mk.Shape == ShapeText {
 			mk.Face = b.markerFace(ms, mk.Face, mk.Text)
 		}
-		b.blocks(li, indent+t.IndentStep, bars, mk, depth)
+		start := len(b.items)
+		b.blocks(li, indent+step, bars, mk, depth)
+		if !b.placed(mk, start) {
+			// An empty item ("- ", or a bare "- [ ]") still shows its marker.
+			b.push(&Para{
+				base: base{after: 0.7}, Runs: []Run{b.run(ms, "\u00a0")},
+				Align: canvas.Left, Opts: t.textOpts(), Orphan: 1, Widow: 1,
+			}, indent+step, bars, mk)
+		}
 	}
+}
+
+// placed reports whether an item carrying m was pushed since start, directly
+// or as the Outer marker of a nested list's first item ("- - x").
+func (b *builder) placed(m *Marker, start int) bool {
+	for _, it := range b.items[start:] {
+		for x := it.Marker; x != nil; x = x.Outer {
+			if x == m {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // markerFace returns a face that can render every rune of a text marker: the

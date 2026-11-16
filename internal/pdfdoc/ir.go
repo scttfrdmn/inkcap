@@ -113,6 +113,8 @@ type Marker struct {
 	Text  string
 	Face  *canvas.FontFace
 	Shape MarkerShape
+	Step  float64 // the list's indent step; the marker is right-aligned in Step-1.6
+	Outer *Marker // marker of an enclosing item that starts with this list ("- - x")
 }
 
 // MarkerShape selects a vector-drawn list marker; ShapeText means "draw Text".

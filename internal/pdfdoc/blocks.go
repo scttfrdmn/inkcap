@@ -664,3 +664,49 @@ func (l *TocLine) Draw(r *Rctx, x, y, w float64) {
 	r.C.Stroke()
 	r.C.SetDashes(0)
 }
+
+// firstRunFace returns the face of the first text run, or nil.
+func firstRunFace(runs []Run) *canvas.FontFace {
+	for _, r := range runs {
+		if r.Face != nil {
+			return r.Face
+		}
+	}
+	return nil
+}
+
+func (p *Para) firstBaseline(float64) float64 {
+	if f := firstRunFace(p.Runs); f != nil {
+		return baselineOf(f, p.Opts)
+	}
+	return 0
+}
+
+func (h *Heading) firstBaseline(float64) float64 {
+	if f := firstRunFace(h.Runs); f != nil {
+		return baselineOf(f, h.Opts)
+	}
+	return 0
+}
+
+func (c *Code) firstBaseline(float64) float64 {
+	for _, ln := range c.Lines {
+		if f := firstRunFace(ln); f != nil {
+			return c.T.CodePad + baselineOf(f, c.T.monoOpts())
+		}
+	}
+	return c.T.CodePad
+}
+
+func (tb *Table) firstBaseline(float64) float64 {
+	row := tb.Head
+	if len(row) == 0 && len(tb.Rows) > 0 {
+		row = tb.Rows[0]
+	}
+	for _, c := range row {
+		if f := firstRunFace(c.Runs); f != nil {
+			return tb.PadY + baselineOf(f, tb.T.textOpts())
+		}
+	}
+	return tb.PadY
+}

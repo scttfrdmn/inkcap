@@ -7,6 +7,10 @@ All notable changes to inkcap. The format follows
 ## [Unreleased]
 
 ### Fixed
+- List markers: `1)` keeps its delimiter, wide numbers like `100.` widen the
+  list instead of sticking into the margin, a marker before a code block, table
+  or heading sits on its first line, empty items keep their marker, and `- - x`
+  shows both bullets (#73).
 - Email autolinks link to `mailto:` (#74); tabs in code expand to the next tab
   stop (#72); an input with no content warns instead of silently producing a
   blank page (#76).

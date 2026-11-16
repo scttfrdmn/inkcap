@@ -2,6 +2,7 @@ package pdfdoc
 
 import (
 	"bytes"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -184,7 +185,7 @@ func TestOrderedListStart(t *testing.T) {
 		"0. a\n1. b\n": {"0.", "1."},
 		"1. a\n2. b\n": {"1.", "2."},
 		"7. a\n8. b\n": {"7.", "8."},
-		"3) a\n4) b\n": {"3.", "4."},
+		"3) a\n4) b\n": {"3)", "4)"}, // the ")" delimiter is kept (#73)
 	} {
 		var got []string
 		for _, it := range parse(t, src, th).Items {
@@ -356,5 +357,67 @@ func TestEmptyInputWarns(t *testing.T) {
 	}
 	if d := parse(t, "Text.\n", th); len(d.Warn) != 0 {
 		t.Errorf("non-empty input warned: %v", d.Warn)
+	}
+}
+
+// List marker edge cases (#73).
+func TestListMarkerEdgeCases(t *testing.T) {
+	th := theme(t, nil)
+	markersOf := func(src string) []*Marker {
+		var out []*Marker
+		for _, it := range parse(t, src, th).Items {
+			if it.Marker != nil {
+				out = append(out, it.Marker)
+			}
+		}
+		return out
+	}
+
+	// A wide ordered label widens the list's step so it fits its gutter.
+	var sb strings.Builder
+	for i := 98; i <= 102; i++ {
+		sb.WriteString(strconv.Itoa(i) + ". item\n")
+	}
+	ms := markersOf("98. a\n99. b\n100. c\n")
+	f := ms[0].Face
+	if w := f.TextWidth("100.") + 1.6; ms[2].Step < w {
+		t.Errorf("step %.1fmm too narrow for \"100.\" (%.1fmm incl. gap)", ms[2].Step, w)
+	}
+	if ms := markersOf("- a\n- b\n"); ms[0].Step != th.IndentStep {
+		t.Errorf("bullet list step = %.1f, want IndentStep %.1f", ms[0].Step, th.IndentStep)
+	}
+
+	// Empty items keep their markers, including a bare task box.
+	if got := len(markersOf("- a\n-\n- c\n")); got != 3 {
+		t.Errorf("empty item: %d markers, want 3", got)
+	}
+	if ms := markersOf("- [ ]\n- [x] done\n"); len(ms) != 2 || ms[0].Shape != ShapeBox {
+		t.Errorf("bare task box lost its marker: %d markers", len(ms))
+	}
+
+	// "- - x": the inner item carries the outer bullet too.
+	ms = markersOf("- - x\n")
+	if len(ms) != 1 || ms[0].Outer == nil || ms[0].Outer.Text != "\u2022" || ms[0].Text != "\u25e6" {
+		t.Fatalf("\"- - x\": want inner ◦ with outer •, got %+v", ms)
+	}
+}
+
+// A marker before a code block, table or heading sits on that block's first
+// baseline, not at its top edge.
+func TestMarkerOnFirstBaseline(t *testing.T) {
+	th := theme(t, nil)
+	for name, src := range map[string]string{
+		"code":    "- ```\n  code line\n  ```\n",
+		"table":   "- | a | b |\n  |---|---|\n  | 1 | 2 |\n",
+		"heading": "- ## Heading in item\n",
+	} {
+		it := parse(t, src, th).Items[0]
+		fb, ok := it.B.(firstBaseliner)
+		if !ok {
+			t.Fatalf("%s: %T has no firstBaseline", name, it.B)
+		}
+		if top := baselineOf(it.Marker.Face, th.textOpts()); fb.firstBaseline(th.ContentW()) <= top+0.1 {
+			t.Errorf("%s: first baseline %.2fmm is not below a body line's %.2fmm", name, fb.firstBaseline(th.ContentW()), top)
+		}
 	}
 }

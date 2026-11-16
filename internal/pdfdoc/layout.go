@@ -411,24 +411,44 @@ func (d *Doc) paint(r *Rctx, pl Placed) {
 	t := d.T
 	it := pl.It
 	if m := it.Marker; m != nil {
-		gutter := t.IndentStep - 1.6
-		if m.Shape == ShapeText {
-			mt := buildText([]Run{{Face: m.Face, Text: m.Text}},
-				gutter, canvas.Right, t.textOpts())
-			r.C.DrawText(pl.X-t.IndentStep, pl.Y, mt)
-		} else {
-			drawMarkerShape(r, m, pl.X-1.6, pl.Y+markerBaseline(m.Face, t))
+		base := pl.Y + baselineOf(m.Face, t.textOpts())
+		if fb, ok := it.B.(firstBaseliner); ok {
+			base = pl.Y + fb.firstBaseline(pl.W)
 		}
+		drawMarker(r, m, pl.X-1.6, base, t)
 	}
 	it.B.Draw(r, pl.X, pl.Y, pl.W)
 }
 
-// markerBaseline is the distance from the top of a marker's line to its
-// baseline, measured from a laid-out reference glyph so it tracks the same
-// leading as a text marker.
-func markerBaseline(f *canvas.FontFace, t *Theme) float64 {
+// firstBaseliner is implemented by blocks whose first line of text doesn't sit
+// at the top of the block (code boxes, tables, headings). A list marker is
+// aligned with that baseline, not with the block's top edge.
+type firstBaseliner interface {
+	firstBaseline(w float64) float64
+}
+
+// drawMarker draws a list marker with its right edge at right and on baseline
+// (y-down page coordinates), then any outer marker one list step further left.
+func drawMarker(r *Rctx, m *Marker, right, baseline float64, t *Theme) {
+	if m.Shape == ShapeText {
+		mt := buildText([]Run{{Face: m.Face, Text: m.Text}}, 0, canvas.Left, t.textOpts())
+		if mt != nil {
+			r.C.DrawText(right-mt.Width, baseline-baselineOf(m.Face, t.textOpts()), mt)
+		}
+	} else {
+		drawMarkerShape(r, m, right, baseline)
+	}
+	if m.Outer != nil {
+		drawMarker(r, m.Outer, right-m.Step, baseline, t)
+	}
+}
+
+// baselineOf is the distance from the top of a line set in face f with opts
+// to its baseline, measured from a laid-out reference glyph so it tracks the
+// same leading as real text.
+func baselineOf(f *canvas.FontFace, opts *canvas.TextOptions) float64 {
 	base := f.Metrics().Ascent
-	ref := buildText([]Run{{Face: f, Text: "x"}}, 0, canvas.Left, t.textOpts())
+	ref := buildText([]Run{{Face: f, Text: "x"}}, 0, canvas.Left, opts)
 	if ref != nil {
 		// WalkSpans reports the baseline y-up (-line.y); flip it to y-down.
 		ref.WalkSpans(func(_, sy float64, _ canvas.TextSpan) { base = -sy })
