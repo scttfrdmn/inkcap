@@ -6,6 +6,8 @@ All notable changes to inkcap. The format follows
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-11-16
+
 ### Changed
 - macOS binaries are Developer ID signed and notarized by Apple. The Homebrew
   cask no longer strips the quarantine flag; Gatekeeper accepts the binary as
@@ -79,7 +81,8 @@ First release.
 - List bullet glyph follows nesting depth, not the millimetre inset (#5).
 - Definition lists render instead of flattening into paragraphs (#6).
 
-[Unreleased]: https://github.com/scttfrdmn/inkcap/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/scttfrdmn/inkcap/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/scttfrdmn/inkcap/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/scttfrdmn/inkcap/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/scttfrdmn/inkcap/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/scttfrdmn/inkcap/compare/v0.1.0...v0.2.0
