@@ -254,6 +254,16 @@ splice the TOC in, paginate again. The TOC's *height* doesn't depend on the
 numbers it contains, so the second pass is stable; `TestTOCConverges` asserts it
 settles and that every entry's number matches where the heading actually landed.
 
+## Front matter
+
+A leading YAML (`---` … `---` or `...`) or TOML (`+++` … `+++`) block is stripped
+from the output. `title`, `author`/`authors`, `subject`/`description`,
+`keywords`/`tags` and `date` are read from it; lists are joined with commas.
+`title` sets the PDF title and running header (`-title` still wins, then front
+matter, then the first heading), and author, subject and keywords go into the
+PDF's document properties. Other keys are ignored. A document that merely opens
+with a `---` rule followed by a blank line or prose is left alone.
+
 ## Links
 
 External links become URI annotations. Every heading also gets a GitHub-style

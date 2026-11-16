@@ -312,7 +312,7 @@ func (d *Doc) Render(w io.Writer, title string) error {
 	}
 
 	p := pdf.New(w, t.PageW, t.PageH, nil)
-	p.SetInfo(title, "", "", "", "inkcap")
+	p.SetInfo(title, d.Meta.Subject, d.Meta.Keywords, d.Meta.Author, "inkcap")
 	ctx := canvas.NewContext(p)
 	ctx.SetCoordSystem(canvas.CartesianIV) // origin top-left, y grows downward
 	r := &Rctx{C: ctx, P: p, T: t, Links: d.Links}

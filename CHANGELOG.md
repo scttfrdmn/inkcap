@@ -7,6 +7,9 @@ All notable changes to inkcap. The format follows
 ## [Unreleased]
 
 ### Fixed
+- YAML/TOML front matter is stripped instead of rendering as a rule and a
+  heading; its title, author, subject and keywords fill the PDF properties and
+  running header (#61).
 - Backslash escapes (`\*`, `\|`) and HTML entities (`&copy;`, `&#8212;`) are
   resolved instead of printing literally; code stays literal (#59).
 

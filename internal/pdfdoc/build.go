@@ -37,6 +37,7 @@ type Doc struct {
 	Notes map[*canvas.FontFace]int    // face -> footnote number (the ref markers)
 	Body  map[int]Note                // footnote number -> content
 	Title string
+	Meta  Meta // from front matter, if any
 	Warn  []string
 	T     *Theme
 }
@@ -63,6 +64,10 @@ func Parse(src []byte, baseDir string, t *Theme) (*Doc, error) {
 		extension.Footnote,
 		extension.DefinitionList,
 	))
+	meta, src, err := splitFrontMatter(src)
+	if err != nil {
+		return nil, err
+	}
 	root := md.Parser().Parse(text.NewReader(src))
 
 	b := &builder{
@@ -71,11 +76,12 @@ func Parse(src []byte, baseDir string, t *Theme) (*Doc, error) {
 		notes: map[*canvas.FontFace]int{},
 		body:  map[int]Note{},
 	}
+	b.title = meta.Title // front matter wins over the first H1
 	b.blocks(root, 0, false, nil, 0)
 	b.checkTargets()
 	return &Doc{
 		Items: b.items, Links: b.links, Notes: b.notes, Body: b.body,
-		Title: b.title, Warn: b.warn, T: t,
+		Title: b.title, Meta: meta, Warn: b.warn, T: t,
 	}, nil
 }
 
