@@ -6,6 +6,8 @@ All notable changes to inkcap. The format follows
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-11-16
+
 ### Changed
 - **Breaking:** `typography.line_height` is now a multiple of the font size,
   like CSS `line-height`, with a default of `1.5` (GitHub's). It used to mean
@@ -128,7 +130,8 @@ First release.
 - List bullet glyph follows nesting depth, not the millimetre inset (#5).
 - Definition lists render instead of flattening into paragraphs (#6).
 
-[Unreleased]: https://github.com/scttfrdmn/inkcap/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/scttfrdmn/inkcap/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/scttfrdmn/inkcap/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/scttfrdmn/inkcap/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/scttfrdmn/inkcap/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/scttfrdmn/inkcap/compare/v0.2.0...v0.3.0

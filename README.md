@@ -14,8 +14,8 @@ no CSS engine.
 *Coprinopsis atramentaria*, the inkcap: a mushroom that deliquesces into black ink.
 
 ![Two pages rendered by inkcap: a table of contents with dotted leaders and page
-numbers, page-anchored footnotes, a running header, and a table whose oversized
-row splits across the page break with its header repeated.](docs/img/example.png)
+numbers, page-anchored footnotes, a running header, and a table with a
+deliberately enormous cell, set at 1.5x line spacing.](docs/img/example.png)
 
 *[`testdata/gaps.md`](testdata/gaps.md) rendered with `inkcap -toc gaps.md`. The
 full PDF is [`example.pdf`](example.pdf).*
