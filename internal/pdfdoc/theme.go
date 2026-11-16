@@ -72,6 +72,7 @@ type Theme struct {
 	PageNumbers   bool
 	PageTotal     bool
 	RunningHeader bool
+	H1NewPage     bool
 	HTML          string
 }
 
@@ -211,6 +212,7 @@ func New(c config.Config) (*Theme, error) {
 		PageNumbers:   c.Document.PageNumbers,
 		PageTotal:     c.Document.PageTotal,
 		RunningHeader: c.Document.RunningHeader,
+		H1NewPage:     c.Document.H1NewPage,
 		HTML:          c.Document.HTML,
 	}
 	if t.LineHeight <= 0 {

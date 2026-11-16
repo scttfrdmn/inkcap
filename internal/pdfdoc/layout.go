@@ -136,6 +136,13 @@ func (d *Doc) paginate(items []Item) []Page {
 	queue := slices.Clone(items)
 	for len(queue) > 0 {
 		it := queue[0]
+		if _, ok := it.B.(*PageBreak); ok {
+			if y > top {
+				flush()
+			}
+			queue = queue[1:]
+			continue
+		}
 		x := t.MarginLeft + it.Indent
 		w := contentW - it.Indent
 
@@ -286,9 +293,13 @@ func spliceTOC(items, toc []Item) []Item {
 	if len(items) > 0 {
 		if h, ok := items[0].B.(*Heading); ok && h.Level == 1 {
 			at = 1
-			// keep any lead paragraph with the title
+			// keep any lead paragraph with the title (up to the next heading
+			// or page break, so the TOC stays on the title's page)
 			for at < len(items) {
 				if _, isHead := items[at].B.(*Heading); isHead {
+					break
+				}
+				if _, isBreak := items[at].B.(*PageBreak); isBreak {
 					break
 				}
 				at++

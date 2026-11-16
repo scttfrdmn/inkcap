@@ -634,6 +634,9 @@ func (b *builder) block(n ast.Node, indent float64, bars []Bar, marker *Marker, 
 		// Footnote ref markers are superscript digits in the runs; they must
 		// not leak into the title, running header, outline or TOC.
 		plain := strings.ReplaceAll(plainText(withoutRefs(runs, b.notes)), string(zwsp), "")
+		if lvl == 1 && t.H1NewPage && len(b.items) > 0 {
+			b.push(&PageBreak{}, indent, bars, nil)
+		}
 		if lvl == 1 && b.title == "" {
 			b.title = plain
 		}
@@ -665,6 +668,10 @@ func (b *builder) block(n ast.Node, indent float64, bars []Bar, marker *Marker, 
 		}
 		runs := b.runs(v, body)
 		if len(runs) == 0 {
+			return
+		}
+		if pt := strings.TrimSpace(plainText(runs)); pt == `\newpage` || pt == `\pagebreak` {
+			b.push(&PageBreak{}, indent, bars, marker)
 			return
 		}
 		sp := t.ParaSpace
@@ -757,6 +764,10 @@ func (b *builder) block(n ast.Node, indent float64, bars []Bar, marker *Marker, 
 
 	case *ast.HTMLBlock:
 		raw := rawHTML(v.Lines(), b.src)
+		if pageBreakRe.MatchString(strings.TrimSpace(raw)) {
+			b.push(&PageBreak{}, indent, bars, marker)
+			return
+		}
 		if v.HasClosure() {
 			// goldmark keeps the closing line of a comment, <script>, etc.
 			// outside Lines(); without it a multi-line comment loses its "-->"
@@ -838,6 +849,9 @@ func (b *builder) checkTargets() {
 		b.warn = append(b.warn, fmt.Sprintf("link to #%s: no heading has that anchor", name))
 	}
 }
+
+// pageBreakRe matches an HTML comment that asks for a page break.
+var pageBreakRe = regexp.MustCompile(`(?i)^<!--\s*(page-?break|new-?page)\s*-->$`)
 
 // commentRe matches the parts of HTML that are never content: comments
 // (including one left unclosed at the end of a block), processing

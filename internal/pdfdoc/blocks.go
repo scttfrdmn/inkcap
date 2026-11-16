@@ -806,3 +806,14 @@ func (tb *Table) firstBaseline(float64) float64 {
 	}
 	return tb.PadY
 }
+
+// PageBreak is a forced page break: zero height, never split. The paginator
+// starts a new page at it, unless it already falls at the top of one, so
+// consecutive breaks never produce a blank page.
+type PageBreak struct{ base }
+
+func (*PageBreak) Measure(float64) float64 { return 0 }
+func (pb *PageBreak) Split(w, avail float64) (Block, Block, bool) {
+	return pb, nil, true
+}
+func (*PageBreak) Draw(*Rctx, float64, float64, float64) {}

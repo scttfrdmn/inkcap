@@ -7,6 +7,9 @@ All notable changes to inkcap. The format follows
 ## [Unreleased]
 
 ### Added
+- Page breaks: `<!-- pagebreak -->` or `\newpage` starts a new page (never a
+  blank one), and `document.h1_new_page` breaks before every H1 after the
+  first (#78).
 - `typography.smart_punctuation` (off by default): curly quotes, `--` en dash,
   `---` em dash and `...` ellipsis in prose; code is never changed (#82).
 - Explicit heading anchors: `## Install {#setup}` sets the anchor that

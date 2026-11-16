@@ -472,3 +472,53 @@ func TestLineHeightIsMultipleOfSize(t *testing.T) {
 		}
 	}
 }
+
+// Page breaks: an HTML comment or \newpage starts a new page; a break at the
+// top of a page (or two in a row) never makes a blank page; h1_new_page
+// breaks before every H1 after the first; nothing warns.
+func TestPageBreaks(t *testing.T) {
+	firstTexts := func(d *Doc, pages []Page) []string {
+		var out []string
+		for _, p := range pages {
+			if len(p.Items) == 0 {
+				out = append(out, "")
+				continue
+			}
+			switch v := p.Items[0].It.B.(type) {
+			case *Para:
+				out = append(out, plainText(v.Runs))
+			case *Heading:
+				out = append(out, v.Plain)
+			default:
+				out = append(out, "?")
+			}
+		}
+		return out
+	}
+	th := theme(t, nil)
+	d := parse(t, "One.\n\n<!-- pagebreak -->\n\nTwo.\n\n\\newpage\n\n<!-- PAGE-BREAK -->\n\nThree.\n", th)
+	if len(d.Warn) != 0 {
+		t.Errorf("warnings: %v", d.Warn)
+	}
+	if got := strings.Join(firstTexts(d, d.paginate(d.Items)), "|"); got != "One.|Two.|Three." {
+		t.Errorf("pages start with %q, want One.|Two.|Three.", got)
+	}
+
+	th = theme(t, func(c *config.Config) { c.Document.H1NewPage = true; c.Document.TOC = true })
+	d = parse(t, "# First\n\nLead.\n\n## Sub\n\nx\n\n# Second\n\ny\n\n# Third\n\nz\n", th)
+	pages := d.paginate(spliceTOC(d.Items, d.buildTOC(d.paginate(d.Items))))
+	got := firstTexts(d, pages)
+	if strings.Join(got, "|") != "First|Second|Third" {
+		t.Errorf("h1_new_page: pages start with %q, want First|Second|Third", got)
+	}
+	// the TOC stays on the title page
+	foundTOC := false
+	for _, pl := range pages[0].Items {
+		if _, ok := pl.It.B.(*TocLine); ok {
+			foundTOC = true
+		}
+	}
+	if !foundTOC {
+		t.Error("TOC is not on the first page")
+	}
+}

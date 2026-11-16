@@ -147,6 +147,7 @@ anything left blank.
 | `page_numbers` | `true` | print folios |
 | `page_total` | `false` | render `3 / 12` instead of `3` |
 | `running_header` | `true` | document title in the header from page 2 |
+| `h1_new_page` | `false` | start each H1 after the first on a new page |
 | `html` | `"strip"` | `strip` (keep text, drop tags) \| `drop` (discard) |
 | `image_dpi` | `150` | nominal resolution for figures; raise to shrink them on the page |
 
@@ -262,6 +263,13 @@ exactly this machinery to break an oversized row.
 splice the TOC in, paginate again. The TOC's *height* doesn't depend on the
 numbers it contains, so the second pass is stable; `TestTOCConverges` asserts it
 settles and that every entry's number matches where the heading actually landed.
+
+## Page breaks
+
+`<!-- pagebreak -->` (also `page-break`, `newpage`) on its own, or a paragraph that
+is just `\newpage` or `\pagebreak`, starts a new page. A break at the top of a page
+is ignored, so you never get blank pages. `h1_new_page = true` breaks before every
+H1 after the first.
 
 ## Front matter
 
