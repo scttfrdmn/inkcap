@@ -7,6 +7,9 @@ All notable changes to inkcap. The format follows
 ## [Unreleased]
 
 ### Fixed
+- Email autolinks link to `mailto:` (#74); tabs in code expand to the next tab
+  stop (#72); an input with no content warns instead of silently producing a
+  blank page (#76).
 - A missing image warns (`image x.png: not found`), and remote images warn that
   they aren't fetched, instead of silently showing the alt text (#67).
 - A linked image on its own line (`[![alt](fig.png)](url)`) is a clickable

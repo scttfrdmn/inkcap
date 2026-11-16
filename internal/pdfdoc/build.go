@@ -83,6 +83,9 @@ func Parse(src []byte, baseDir string, t *Theme) (*Doc, error) {
 	b.title = meta.Title // front matter wins over the first H1
 	b.blocks(root, 0, nil, nil, 0)
 	b.checkTargets()
+	if len(b.items) == 0 && len(b.body) == 0 {
+		b.warn = append(b.warn, "the input has no content; the PDF is a blank page")
+	}
 	return &Doc{
 		Items: b.items, Links: b.links, Notes: b.notes, Body: b.body,
 		Title: b.title, Meta: meta, Warn: b.warn, T: t,
@@ -340,6 +343,9 @@ func (b *builder) inline(n ast.Node, s style, out *[]Run) {
 		case *ast.AutoLink:
 			ls := s
 			u := string(v.URL(b.src))
+			if v.AutoLinkType == ast.AutoLinkEmail && !strings.HasPrefix(strings.ToLower(u), "mailto:") {
+				u = "mailto:" + u // goldmark returns the bare address
+			}
 			ls.link = u
 			b.emit(ls, string(v.Label(b.src)), out)
 		case *ast.Image:
@@ -811,7 +817,7 @@ func (b *builder) code(segs *text.Segments, lang string) Block {
 		seg := segs.At(i)
 		buf.Write(seg.Value(b.src))
 	}
-	src := strings.TrimRight(buf.String(), "\n")
+	src := b.expandTabs(strings.TrimRight(buf.String(), "\n"))
 
 	plain := t.Mono.Face(t.CodeSize, t.FG, canvas.FontRegular)
 	lines := b.highlight(src, lang, plain)
@@ -877,7 +883,7 @@ func (b *builder) highlight(src, lang string, plain *canvas.FontFace) [][]Run {
 				cur = []Run{}
 			}
 			if p != "" {
-				cur = append(cur, b.monoRuns(f, b.expandTabs(p))...)
+				cur = append(cur, b.monoRuns(f, p)...)
 			}
 		}
 	}
@@ -892,7 +898,7 @@ func (b *builder) plainLines(src string, f *canvas.FontFace) [][]Run {
 			out = append(out, nil)
 			continue
 		}
-		out = append(out, b.monoRuns(f, b.expandTabs(ln)))
+		out = append(out, b.monoRuns(f, ln))
 	}
 	return out
 }
@@ -948,8 +954,32 @@ func (b *builder) monoFallback(primary *canvas.FontFace, r rune) *canvas.FontFac
 	return primary
 }
 
+// expandTabs replaces each tab with spaces up to the next tab stop (a
+// multiple of tab_width columns), per line, so tab-separated columns line up.
+// It runs on the whole block before highlighting, while columns are still
+// known; a token-at-a-time expansion can't know where a tab starts.
 func (b *builder) expandTabs(s string) string {
-	return strings.ReplaceAll(s, "\t", strings.Repeat(" ", b.t.TabWidth))
+	if !strings.Contains(s, "\t") {
+		return s
+	}
+	tw := b.t.TabWidth
+	var sb strings.Builder
+	col := 0
+	for _, r := range s {
+		switch r {
+		case '\t':
+			n := tw - col%tw
+			sb.WriteString(strings.Repeat(" ", n))
+			col += n
+		case '\n':
+			sb.WriteRune(r)
+			col = 0
+		default:
+			sb.WriteRune(r)
+			col += monoCols(r)
+		}
+	}
+	return sb.String()
 }
 
 // soleImage returns the image when a paragraph holds nothing but an image,

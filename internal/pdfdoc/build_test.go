@@ -313,3 +313,48 @@ func TestSpaceAfterLists(t *testing.T) {
 		t.Errorf("nested list end got %.1fmm after it; a nested list should stay tight", got)
 	}
 }
+
+// Email autolinks get a mailto: URL; goldmark hands back the bare address.
+func TestEmailAutolinkMailto(t *testing.T) {
+	th := theme(t, nil)
+	d := parse(t, "Mail <me@example.com>, me2@example.com, <mailto:me3@example.com>, <https://x.y>.\n", th)
+	got := map[string]bool{}
+	for _, u := range d.Links {
+		got[u] = true
+	}
+	for _, want := range []string{"mailto:me@example.com", "mailto:me2@example.com", "mailto:me3@example.com", "https://x.y"} {
+		if !got[want] {
+			t.Errorf("no link %q; have %v", want, got)
+		}
+	}
+}
+
+// Tabs expand to the next tab stop, so tab-separated columns line up.
+func TestTabStops(t *testing.T) {
+	th := theme(t, func(c *config.Config) { c.Code.TabWidth = 4 })
+	d := parse(t, "```\na\tb\nabc\tb\nabcde\tb\n\tx\n```\n", th)
+	code := d.Items[0].B.(*Code)
+	want := []string{"a   b", "abc b", "abcde   b", "    x"}
+	for i, ln := range code.Lines {
+		if got := plainText(ln); got != want[i] {
+			t.Errorf("line %d = %q, want %q", i, got, want[i])
+		}
+	}
+}
+
+// An input with nothing to render says so instead of silently producing a
+// blank page; front matter or comments alone count as nothing.
+func TestEmptyInputWarns(t *testing.T) {
+	th := theme(t, nil)
+	for name, src := range map[string]string{
+		"empty": "", "blank lines": "\n\n  \n", "front matter only": "---\ntitle: T\n---\n", "comment only": "<!-- todo -->\n",
+	} {
+		d := parse(t, src, th)
+		if len(d.Warn) == 0 || !strings.Contains(d.Warn[len(d.Warn)-1], "no content") {
+			t.Errorf("%s: warnings %v, want a 'no content' warning", name, d.Warn)
+		}
+	}
+	if d := parse(t, "Text.\n", th); len(d.Warn) != 0 {
+		t.Errorf("non-empty input warned: %v", d.Warn)
+	}
+}
