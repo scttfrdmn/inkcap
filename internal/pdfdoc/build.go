@@ -364,7 +364,7 @@ func (b *builder) inline(n ast.Node, s style, out *[]Run) {
 		case *ast.RawHTML:
 			// A tag, not text. goldmark emits the text between tags as
 			// ast.Text, so "strip" simply means: ignore the tags.
-			raw := rawHTML(v.Segments, b.src)
+			raw := stripComments(rawHTML(v.Segments, b.src))
 			if brRe.MatchString(raw) {
 				*out = append(*out, b.run(s, "\n"))
 			}
@@ -557,6 +557,13 @@ func (b *builder) block(n ast.Node, indent float64, bar bool, marker *Marker, de
 
 	case *ast.HTMLBlock:
 		raw := rawHTML(v.Lines(), b.src)
+		if v.HasClosure() {
+			// goldmark keeps the closing line of a comment, <script>, etc.
+			// outside Lines(); without it a multi-line comment loses its "-->"
+			// and its contents leak out as text.
+			raw += string(v.ClosureLine.Value(b.src))
+		}
+		raw = stripComments(raw)
 		b.warnHTML(raw)
 		if t.HTML == "drop" {
 			return
@@ -615,6 +622,14 @@ func (b *builder) checkTargets() {
 		b.warn = append(b.warn, fmt.Sprintf("link to #%s: no heading has that anchor", name))
 	}
 }
+
+// commentRe matches the parts of HTML that are never content: comments
+// (including one left unclosed at the end of a block), processing
+// instructions, and <!DOCTYPE>/<![CDATA[ declarations. They are dropped
+// silently, never rendered and never warned about.
+var commentRe = regexp.MustCompile(`(?s)<!--.*?(?:-->|$)|<\?.*?(?:\?>|$)|<![A-Za-z\[][^>]*>`)
+
+func stripComments(raw string) string { return commentRe.ReplaceAllString(raw, " ") }
 
 var (
 	tagRe = regexp.MustCompile(`(?s)<[^>]*>`)

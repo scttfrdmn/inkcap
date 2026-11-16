@@ -7,6 +7,8 @@ All notable changes to inkcap. The format follows
 ## [Unreleased]
 
 ### Fixed
+- HTML comments, `<!DOCTYPE>` and `<?…?>` are dropped silently; a multi-line
+  comment no longer prints its contents or warns as a dropped tag (#62).
 - YAML/TOML front matter is stripped instead of rendering as a rule and a
   heading; its title, author, subject and keywords fill the PDF properties and
   running header (#61).

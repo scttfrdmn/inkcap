@@ -253,3 +253,42 @@ func TestEscapesAndEntities(t *testing.T) {
 		}
 	}
 }
+
+// HTML comments (and <!DOCTYPE>, <?pi?>) are never content: they must not
+// render as text and must not warn. A multi-line comment block used to lose its
+// closing "-->" line and print its contents.
+func TestHTMLCommentsAreSilent(t *testing.T) {
+	th := theme(t, nil)
+	src := "Before.\n\n" +
+		"<!--\nmulti-line SECRET1\ncomment\n-->\n\n" +
+		"<!-- one-line SECRET2 -->\n\n" +
+		"<!-- has a > inside SECRET3 -->\n\n" +
+		"Inline <!-- SECRET4 --> text stays.\n\n" +
+		"<!DOCTYPE html>\n\n" +
+		"<?xml version=\"1.0\"?>\n\n" +
+		"<div>kept text</div>\n\n" +
+		"After.\n\n" +
+		"<!-- unclosed SECRET5\n"
+	d := parse(t, src, th)
+	var sb strings.Builder
+	for _, it := range d.Items {
+		if p, ok := it.B.(*Para); ok {
+			sb.WriteString(plainText(p.Runs) + "\n")
+		}
+	}
+	got := sb.String()
+	for _, secret := range []string{"SECRET", "<!--", "-->", "DOCTYPE", "xml"} {
+		if strings.Contains(got, secret) {
+			t.Errorf("comment leaked %q into the text:\n%s", secret, got)
+		}
+	}
+	for _, want := range []string{"Before.", "Inline", "text stays.", "kept text", "After."} {
+		if !strings.Contains(got, want) {
+			t.Errorf("lost %q:\n%s", want, got)
+		}
+	}
+	// Only the real tag is reported.
+	if len(d.Warn) != 1 || d.Warn[0] != "dropped HTML tag <div>" {
+		t.Errorf("warnings = %q, want only the <div> one", d.Warn)
+	}
+}
