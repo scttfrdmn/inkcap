@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/scttfrdmn/canvas"
 	"github.com/scttfrdmn/inkcap/internal/config"
-	"github.com/tdewolff/canvas"
 )
 
 // markers walks the built items and returns the bullet glyph of every

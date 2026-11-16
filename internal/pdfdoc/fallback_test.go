@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/scttfrdmn/canvas"
 	"github.com/scttfrdmn/inkcap/internal/config"
-	"github.com/tdewolff/canvas"
 )
 
 // covers must treat control characters as covered (they have no glyph but are
@@ -211,5 +211,42 @@ func TestCJKSoftBreakNoSpace(t *testing.T) {
 		if got := plainText(parse(t, src, th).Items[0].B.(*Para).Runs); got != want {
 			t.Errorf("%q -> %q, want %q", src, got, want)
 		}
+	}
+}
+
+// Soft hyphens (U+00AD) are optional breaks: an unused one is invisible and
+// must not shift the text after it, and a used one shows as "-". canvas
+// misaligned the text after an unused one (fixed in the scttfrdmn/canvas fork,
+// tdewolff/canvas#397), which garbled soft-hyphenated paragraphs.
+func TestSoftHyphens(t *testing.T) {
+	th := theme(t, nil)
+	f := th.Text.Face(th.BodySize, th.FG)
+	src := "re­peat­ing the ex­per­i­ment care­ful­ly"
+	spans := func(w float64) []string {
+		var lines []string
+		buildText([]Run{{Face: f, Text: src}}, w, canvas.Left, th.textOpts()).WalkLines(func(_ float64, ss []canvas.TextSpan) {
+			var sb strings.Builder
+			for _, s := range ss {
+				sb.WriteString(s.Text)
+			}
+			lines = append(lines, sb.String())
+		})
+		return lines
+	}
+	// Wide: one line, no break used, every character in order.
+	if got := strings.Join(spans(500), ""); got != src {
+		t.Errorf("unused soft hyphens shifted the text:\n got %q\nwant %q", got, src)
+	}
+	// Narrow: the text breaks at soft hyphens, with "-" at the line ends, and
+	// rejoined without hyphens and soft hyphens it is the original word sequence.
+	lines := spans(22)
+	if len(lines) < 2 {
+		t.Fatalf("expected the narrow text to wrap, got %q", lines)
+	}
+	clean := func(s string) string {
+		return strings.NewReplacer("­", "", "-", "", " ", "").Replace(s)
+	}
+	if got, want := clean(strings.Join(lines, "")), clean(src); got != want {
+		t.Errorf("wrapped text lost or reordered characters:\n got %q\nwant %q", got, want)
 	}
 }

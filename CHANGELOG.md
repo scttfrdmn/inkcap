@@ -14,6 +14,9 @@ All notable changes to inkcap. The format follows
   rejected with an error explaining the change. Documents get shorter (#71).
 
 ### Fixed
+- Soft hyphens (U+00AD) no longer garble justified text (#69). inkcap now builds
+  against `github.com/scttfrdmn/canvas`, a module-renamed fork of tdewolff/canvas
+  carrying the fix proposed upstream in tdewolff/canvas#397.
 - Link text and code are shaped without ligatures, so URLs and code copy out
   of the PDF as typed; invisible characters (U+FE0F, joiners) no longer warn;
   a line break inside CJK text no longer inserts a space (#75).

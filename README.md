@@ -210,6 +210,14 @@ numbers that only exist after pagination, and footnotes shrink the height of
 the page they land on. Neither is expressible in a draw-as-you-go loop.
 `paginate` is pure and returns `[]Page`; `draw` consumes it.
 
+> **canvas fork.** inkcap builds against
+> [`github.com/scttfrdmn/canvas`](https://github.com/scttfrdmn/canvas/tree/inkcap), which is
+> tdewolff/canvas at the commit inkcap pinned, with its module path renamed and one fix
+> applied: [tdewolff/canvas#397](https://github.com/tdewolff/canvas/pull/397), a text shift
+> after an unused soft hyphen or zero-width space. The fork is renamed rather than wired in
+> with a `replace` directive so `go install` keeps working. inkcap goes back to upstream
+> once #397 is merged.
+
 ## The Block contract
 
 ```go

@@ -3,8 +3,8 @@ package pdfdoc
 import (
 	"image"
 
-	"github.com/tdewolff/canvas"
-	"github.com/tdewolff/canvas/renderers/pdf"
+	"github.com/scttfrdmn/canvas"
+	"github.com/scttfrdmn/canvas/renderers/pdf"
 )
 
 // Run is a styled inline fragment. Face identity doubles as the link key:

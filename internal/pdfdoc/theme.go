@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"image/color"
 
+	"github.com/scttfrdmn/canvas"
 	"github.com/scttfrdmn/inkcap/internal/config"
-	"github.com/tdewolff/canvas"
 )
 
 //go:embed fonts/*.ttf

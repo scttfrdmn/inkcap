@@ -3,7 +3,7 @@ package pdfdoc
 import (
 	"strings"
 
-	"github.com/tdewolff/canvas"
+	"github.com/scttfrdmn/canvas"
 )
 
 type Cell struct {

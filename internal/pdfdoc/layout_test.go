@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/scttfrdmn/canvas"
 	"github.com/scttfrdmn/inkcap/internal/config"
-	"github.com/tdewolff/canvas"
 )
 
 func theme(t *testing.T, tweak func(*config.Config)) *Theme {

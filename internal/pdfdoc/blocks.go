@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/tdewolff/canvas"
+	"github.com/scttfrdmn/canvas"
 	"golang.org/x/text/width"
 )
 

@@ -6,8 +6,8 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/tdewolff/canvas"
-	"github.com/tdewolff/canvas/renderers/pdf"
+	"github.com/scttfrdmn/canvas"
+	"github.com/scttfrdmn/canvas/renderers/pdf"
 )
 
 // Layout is split into two passes for a reason: a table of contents needs page
