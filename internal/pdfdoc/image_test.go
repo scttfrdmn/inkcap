@@ -1,6 +1,7 @@
 package pdfdoc
 
 import (
+	"bytes"
 	"image"
 	"image/color"
 	"image/png"
@@ -220,5 +221,60 @@ func TestTallFigureFitsPage(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// A missing or remote image falls back to its alt text and says why, once
+// per destination. It used to fall back silently.
+func TestImageFailuresWarn(t *testing.T) {
+	th := theme(t, nil)
+	d := parse(t, "![gone](nope.png)\n\nInline ![gone](nope.png) twice.\n\n![badge](https://img.shields.io/x.svg)\n", th)
+	joined := strings.Join(d.Warn, "\n")
+	n := 0
+	for _, w := range d.Warn {
+		if strings.Contains(w, "nope.png") {
+			n++
+		}
+	}
+	if n != 1 || !strings.Contains(joined, "image nope.png: not found") {
+		t.Errorf("want exactly one 'not found' warning for nope.png, got: %v", d.Warn)
+	}
+	if !strings.Contains(joined, "https://img.shields.io/x.svg: remote images are not fetched") {
+		t.Errorf("no remote-image warning: %v", d.Warn)
+	}
+	var text strings.Builder
+	for _, it := range d.Items {
+		if p, ok := it.B.(*Para); ok {
+			text.WriteString(plainText(p.Runs))
+		}
+	}
+	if !strings.Contains(text.String(), "gone") || !strings.Contains(text.String(), "badge") {
+		t.Errorf("alt text missing: %q", text.String())
+	}
+}
+
+// [![alt](fig.png)](url) alone in a paragraph is a figure, and the figure
+// links to url. Inside running text it stays inline.
+func TestLinkedImageIsFigure(t *testing.T) {
+	th := theme(t, nil)
+	png := writePNG(t, 300, 150)
+	d := parse(t, "[!["+"diagram"+"]("+png+")](https://example.com/fig)\n", th)
+	im, ok := d.Items[0].B.(*Image)
+	if !ok {
+		t.Fatalf("linked image became %T, want *Image figure", d.Items[0].B)
+	}
+	if im.Link != "https://example.com/fig" {
+		t.Errorf("figure link = %q", im.Link)
+	}
+	var buf bytes.Buffer
+	if err := d.Render(&buf, ""); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(buf.Bytes(), []byte("https://example.com/fig")) {
+		t.Error("PDF has no link annotation for the figure")
+	}
+	d = parse(t, "See [!["+"d"+"]("+png+")](https://example.com) inline.\n", th)
+	if _, ok := d.Items[0].B.(*Para); !ok {
+		t.Errorf("linked image inside text became %T, want inline in a *Para", d.Items[0].B)
 	}
 }

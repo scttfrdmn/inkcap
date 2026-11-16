@@ -3,12 +3,14 @@ package pdfdoc
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	stdhtml "html"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
+	"io/fs"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -344,17 +346,13 @@ func (b *builder) inline(n ast.Node, s style, out *[]Run) {
 			// An inline image renders at the surrounding text's cap height,
 			// vertically centred on the line. If the file is missing or fails to
 			// decode, fall back to the alt text.
-			dest := string(v.Destination)
-			if isSVG(dest) {
-				if c, err := b.loadSVG(dest); err == nil {
-					*out = append(*out, b.svgRun(s, c))
-				} else {
-					b.inline(v, s, out)
-				}
-			} else if img, err := b.loadImage(dest); err == nil {
-				*out = append(*out, b.imageRun(s, img))
-			} else {
-				b.inline(v, s, out)
+			switch m, c, ok := b.loadAny(string(v.Destination)); {
+			case !ok:
+				b.inline(v, s, out) // already warned
+			case c != nil:
+				*out = append(*out, b.svgRun(s, c))
+			default:
+				*out = append(*out, b.imageRun(s, m))
 			}
 		case *xast.FootnoteLink:
 			if b.t.Footnotes == "none" {
@@ -460,32 +458,22 @@ func (b *builder) block(n ast.Node, indent float64, bars []Bar, marker *Marker, 
 		b.push(h, indent, bars, marker)
 
 	case *ast.Paragraph, *ast.TextBlock:
-		// A paragraph whose only content is an image becomes a figure.
-		if p, ok := v.(*ast.Paragraph); ok && p.ChildCount() == 1 {
-			if img, ok := p.FirstChild().(*ast.Image); ok {
-				dest := string(img.Destination)
-				cap := b.runs(img, style{size: t.SmallSize, color: colMuted})
-				if isSVG(dest) {
-					if c, err := b.loadSVG(dest); err == nil {
-						b.push(&Image{
-							base:    base{before: t.BlockSpace, after: t.BlockSpace},
-							SVG:     c,
-							Caption: cap,
-							T:       t,
-						}, indent, bars, marker)
-						return
-					}
-					// fall through to alt text if the SVG is missing/invalid
-				} else if m, err := b.loadImage(dest); err == nil {
+		// A paragraph whose only content is an image, or a link wrapping only
+		// an image ([![alt](fig.png)](url)), becomes a figure.
+		if p, ok := v.(*ast.Paragraph); ok {
+			if img, link := soleImage(p); img != nil {
+				if m, c, ok := b.loadAny(string(img.Destination)); ok {
 					b.push(&Image{
 						base:    base{before: t.BlockSpace, after: t.BlockSpace},
 						Img:     m,
-						Caption: cap,
+						SVG:     c,
+						Caption: b.runs(img, style{size: t.SmallSize, color: colMuted}),
+						Link:    link,
 						T:       t,
 					}, indent, bars, marker)
 					return
 				}
-				// fall through to alt text if the file is missing
+				// missing or unreadable (already warned): fall through to alt text
 			}
 		}
 		runs := b.runs(v, body)
@@ -962,6 +950,58 @@ func (b *builder) monoFallback(primary *canvas.FontFace, r rune) *canvas.FontFac
 
 func (b *builder) expandTabs(s string) string {
 	return strings.ReplaceAll(s, "\t", strings.Repeat(" ", b.t.TabWidth))
+}
+
+// soleImage returns the image when a paragraph holds nothing but an image,
+// or nothing but a link wrapping only an image (with that link's URL).
+func soleImage(p *ast.Paragraph) (*ast.Image, string) {
+	if p.ChildCount() != 1 {
+		return nil, ""
+	}
+	switch c := p.FirstChild().(type) {
+	case *ast.Image:
+		return c, ""
+	case *ast.Link:
+		if c.ChildCount() == 1 {
+			if img, ok := c.FirstChild().(*ast.Image); ok {
+				return img, string(c.Destination)
+			}
+		}
+	}
+	return nil, ""
+}
+
+// loadAny loads a raster image or an SVG. On failure it warns, once per
+// destination, and reports !ok so the caller falls back to the alt text.
+// Remote images are deliberately not fetched: builds stay offline and
+// reproducible.
+func (b *builder) loadAny(dest string) (image.Image, *canvas.Canvas, bool) {
+	var (
+		m   image.Image
+		c   *canvas.Canvas
+		err error
+	)
+	switch {
+	case strings.HasPrefix(dest, "http://") || strings.HasPrefix(dest, "https://") || strings.HasPrefix(dest, "//"):
+		err = fmt.Errorf("image %s: remote images are not fetched; showing the alt text", dest)
+	case isSVG(dest):
+		c, err = b.loadSVG(dest)
+	default:
+		m, err = b.loadImage(dest)
+		if err != nil && !strings.HasPrefix(err.Error(), "image ") {
+			err = fmt.Errorf("image %s: %w", dest, err) // decode errors lack the prefix
+		}
+	}
+	if errors.Is(err, fs.ErrNotExist) {
+		err = fmt.Errorf("image %s: not found; showing the alt text", dest)
+	}
+	if err != nil {
+		if w := err.Error(); !slices.Contains(b.warn, w) {
+			b.warn = append(b.warn, w)
+		}
+		return nil, nil, false
+	}
+	return m, c, true
 }
 
 // loadImage is used by the (optional) image path; kept simple on purpose.

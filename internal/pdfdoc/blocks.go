@@ -485,6 +485,7 @@ type Image struct {
 	Img     image.Image    // raster figure
 	SVG     *canvas.Canvas // vector figure (mutually exclusive with Img)
 	Caption []Run
+	Link    string // set when the figure is wrapped in a link; the image is clickable
 	T       *Theme
 }
 
@@ -537,6 +538,7 @@ func (im *Image) Split(w, avail float64) (Block, Block, bool) { return atomicSpl
 func (im *Image) Draw(r *Rctx, x, y, w float64) {
 	iw, ih := im.dims(w)
 	ix := x + (w-iw)/2
+	r.Link(im.Link, ix, y, iw, ih)
 	if im.SVG != nil {
 		im.drawSVG(r, ix, y, iw, ih)
 	} else {

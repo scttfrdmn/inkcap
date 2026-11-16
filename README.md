@@ -301,7 +301,10 @@ mid-paragraph is inline, scaled to the surrounding text's cap height. Raster
 formats (PNG, JPEG, GIF) embed at `image_dpi` (default 150). **SVG** embeds as
 true vector — parsed by `tdewolff/canvas`, so it stays sharp at any zoom and
 `image_dpi` doesn't apply (the SVG carries its own size). A missing file or an
-SVG the parser can't handle falls back to the image's alt text. The SVG parser
+SVG the parser can't handle falls back to the image's alt text, with a warning.
+Remote (`http(s)://`) images are not fetched, by design, so builds stay offline and
+reproducible; they show their alt text and say so. A linked image on its own line,
+`[![alt](fig.png)](url)`, is a figure that links to `url`. The SVG parser
 is not a full SVG/CSS engine; exotic features (filters, some `<text>`, CSS
 gradients) may render partially.
 

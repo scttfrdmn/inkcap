@@ -7,6 +7,10 @@ All notable changes to inkcap. The format follows
 ## [Unreleased]
 
 ### Fixed
+- A missing image warns (`image x.png: not found`), and remote images warn that
+  they aren't fetched, instead of silently showing the alt text (#67).
+- A linked image on its own line (`[![alt](fig.png)](url)`) is a clickable
+  figure rather than an inline image (#68).
 - Tight lists and definition lists are followed by block spacing instead of
   running into the next paragraph (#66).
 - Blockquote bars run unbroken through a quote, each nesting level gets its
