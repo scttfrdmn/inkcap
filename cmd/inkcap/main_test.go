@@ -154,3 +154,30 @@ func TestWriteAtomicOnFailure(t *testing.T) {
 		t.Errorf("mode %v, want 0644", fi.Mode().Perm())
 	}
 }
+
+// An input with no content must warn instead of silently writing a page that
+// holds nothing but the folio — and still produce the PDF, so piping a
+// generated file that happens to be empty does not fail the run.
+func TestEmptyInputWarns(t *testing.T) {
+	dir := t.TempDir()
+	in := filepath.Join(dir, "empty.md")
+	if err := os.WriteFile(in, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dst := filepath.Join(dir, "empty.pdf")
+
+	code, out, errOut := cli(t, "", in, "-o", dst)
+	if code != 0 {
+		t.Fatalf("exit %d, stderr: %s", code, errOut)
+	}
+	if !strings.Contains(errOut, "input has no content") {
+		t.Errorf("stderr = %q, want \"input has no content\"", errOut)
+	}
+	isPDF(t, dst)
+	if strings.TrimSpace(out) != dst {
+		t.Errorf("stdout = %q, want the output path %q", out, dst)
+	}
+	if _, _, errOut := cli(t, "", in, "-o", dst, "-q"); strings.Contains(errOut, "input has no content") {
+		t.Errorf("-q: stderr = %q, want the warning suppressed", errOut)
+	}
+}

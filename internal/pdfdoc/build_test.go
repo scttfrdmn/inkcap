@@ -2,6 +2,7 @@ package pdfdoc
 
 import (
 	"bytes"
+	"slices"
 	"strings"
 	"testing"
 
@@ -216,5 +217,30 @@ func TestFootnoteRefNotInHeadingText(t *testing.T) {
 		if l, ok := it.B.(*TocLine); ok && strings.ContainsAny(plainText(l.runs()), "12") {
 			t.Errorf("TOC line %q contains a footnote number", plainText(l.runs()))
 		}
+	}
+}
+
+// A document that builds no blocks would otherwise paginate to one page of
+// nothing but the folio, with no hint that the input was empty. Empty and
+// whitespace-only sources must warn; any real content must not.
+func TestEmptyInputWarns(t *testing.T) {
+	th := theme(t, nil)
+	for _, src := range []string{"", "   \n\n\t\n"} {
+		d := parse(t, src, th)
+		if !slices.Contains(d.Warn, "input has no content") {
+			t.Errorf("%q: warnings = %v, want \"input has no content\"", src, d.Warn)
+		}
+		var buf bytes.Buffer
+		if err := d.Render(&buf, ""); err != nil {
+			t.Fatalf("%q: render: %v", src, err)
+		}
+		if !bytes.HasPrefix(buf.Bytes(), []byte("%PDF-")) {
+			t.Errorf("%q: render did not produce a PDF", src)
+		}
+	}
+
+	d := parse(t, "Body.\n", th)
+	if slices.Contains(d.Warn, "input has no content") {
+		t.Errorf("non-empty input warned: %v", d.Warn)
 	}
 }
