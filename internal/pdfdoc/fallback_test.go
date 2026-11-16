@@ -163,3 +163,53 @@ func TestWrapMonoWideChars(t *testing.T) {
 		t.Errorf("runCols(a你b) = %d, want 4", got)
 	}
 }
+
+// glyphCount lays out runs and counts the glyphs in spans of face f.
+func glyphCount(runs []Run, f *canvas.FontFace, th *Theme) int {
+	n := 0
+	buildText(runs, 0, canvas.Left, th.textOpts()).WalkSpans(func(_, _ float64, s canvas.TextSpan) {
+		if s.Face == f {
+			n += len(s.Glyphs)
+		}
+	})
+	return n
+}
+
+// Link text is shaped without ligatures, so a URL copies out of the PDF as
+// typed ("files", not "ﬁles"); body text keeps them.
+func TestLinksHaveNoLigatures(t *testing.T) {
+	th := theme(t, nil)
+	body := th.Text.Face(th.BodySize, th.FG)
+	if glyphCount([]Run{{Face: body, Text: "files"}}, body, th) == 5 {
+		t.Skip("the text face has no fi ligature; nothing to test")
+	}
+	d := parse(t, "[files](https://files.example.com)\n", th)
+	run := d.Items[0].B.(*Para).Runs[0]
+	if n := glyphCount([]Run{run}, run.Face, th); n != 5 {
+		t.Errorf("link 'files' shaped to %d glyphs, want 5 (no ligature)", n)
+	}
+}
+
+// Invisible characters (variation selectors, joiners) never warn.
+func TestDefaultIgnorablesDontWarn(t *testing.T) {
+	th := theme(t, nil)
+	d := parse(t, "A️ B‍ C‌ D⁠ E​.\n", th)
+	if len(d.Warn) != 0 {
+		t.Errorf("warnings for invisible characters: %v", d.Warn)
+	}
+}
+
+// A soft line break between CJK characters joins without a space.
+func TestCJKSoftBreakNoSpace(t *testing.T) {
+	th := theme(t, nil)
+	for src, want := range map[string]string{
+		"中文\n测试\n":         "中文测试",
+		"English\nwords\n": "English words",
+		"中文\nEnglish\n":    "中文 English",
+		"日本語の\n*文章*\n":     "日本語の文章",
+	} {
+		if got := plainText(parse(t, src, th).Items[0].B.(*Para).Runs); got != want {
+			t.Errorf("%q -> %q, want %q", src, got, want)
+		}
+	}
+}

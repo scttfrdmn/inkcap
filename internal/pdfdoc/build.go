@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/alecthomas/chroma/v2"
 	"github.com/alecthomas/chroma/v2/lexers"
@@ -156,6 +157,9 @@ func (b *builder) face(s style) *canvas.FontFace {
 	if s.code {
 		return b.t.Mono.Face(size, args...)
 	}
+	if s.link != "" {
+		return b.t.LinkText.Face(size, args...)
+	}
 	return b.t.Text.Face(size, args...)
 }
 
@@ -164,10 +168,50 @@ func (b *builder) face(s style) *canvas.FontFace {
 // so they always count as covered — otherwise every line break would look like
 // a missing glyph.
 func covers(f *canvas.FontFace, r rune) bool {
-	if r < 0x20 || r == 0x2028 || r == 0x2029 || r == 0xFEFF {
+	if r < 0x20 || r == 0x2028 || r == 0x2029 || r == 0xFEFF || defaultIgnorable(r) {
 		return true
 	}
 	return f.Font.GlyphIndex(r) != 0
+}
+
+// defaultIgnorable reports characters that are invisible by definition and
+// never need a glyph: variation selectors (the U+FE0F after an emoji), the
+// zero-width joiner and non-joiner, zero-width space and word joiner. They
+// used to raise "no glyph" warnings of their own.
+func defaultIgnorable(r rune) bool {
+	switch r {
+	case 0x200B, 0x200C, 0x200D, 0x2060:
+		return true
+	}
+	return unicode.Is(unicode.Variation_Selector, r)
+}
+
+// isCJK reports Han, Hiragana and Katakana characters and CJK/fullwidth
+// punctuation: scripts written without spaces between words. (Hangul is
+// written with spaces, so it isn't included.)
+func isCJK(r rune) bool {
+	return unicode.In(r, unicode.Han, unicode.Hiragana, unicode.Katakana) ||
+		(r >= 0x3000 && r <= 0x303F) || (r >= 0xFF00 && r <= 0xFFEF)
+}
+
+// firstRune returns the first character of the text that starts at node n
+// (descending into emphasis, links and so on), or 0.
+func firstRune(n ast.Node, src []byte) rune {
+	for ; n != nil; n = n.FirstChild() {
+		switch v := n.(type) {
+		case *ast.Text:
+			for _, r := range string(v.Segment.Value(src)) {
+				return r
+			}
+			return 0
+		case *ast.String:
+			for _, r := range string(v.Value) {
+				return r
+			}
+			return 0
+		}
+	}
+	return 0
 }
 
 // faceFor returns the face that should render r: the primary face if it covers
@@ -298,7 +342,12 @@ func (b *builder) inline(n ast.Node, s style, out *[]Run) {
 		case *ast.Text:
 			txt := decodeText(v.Segment.Value(b.src))
 			if v.SoftLineBreak() {
-				txt += " "
+				// A line break inside CJK text joins without a space, as
+				// browsers do; elsewhere it's a word space.
+				last, _ := utf8.DecodeLastRuneInString(txt)
+				if !(isCJK(last) && isCJK(firstRune(v.NextSibling(), b.src))) {
+					txt += " "
+				}
 			}
 			if v.HardLineBreak() {
 				txt += "\n"

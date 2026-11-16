@@ -7,6 +7,9 @@ All notable changes to inkcap. The format follows
 ## [Unreleased]
 
 ### Fixed
+- Link text and code are shaped without ligatures, so URLs and code copy out
+  of the PDF as typed; invisible characters (U+FE0F, joiners) no longer warn;
+  a line break inside CJK text no longer inserts a space (#75).
 - Footnotes that can't fit at the foot of their page continue on the next
   page instead of being drawn over the body (#70).
 - List markers: `1)` keeps its delimiter, wide numbers like `100.` widen the

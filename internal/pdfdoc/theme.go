@@ -21,7 +21,10 @@ type Theme struct {
 	FooterGap               float64
 
 	Text *canvas.FontFamily
-	Mono *canvas.FontFamily
+	// LinkText is Text again with ligatures off, for link text: a URL drawn
+	// with the "fi" ligature copies out of the PDF as "ﬁ" and stops working.
+	LinkText *canvas.FontFamily
+	Mono     *canvas.FontFamily
 	// Fallback families, consulted in order for glyphs the primary faces lack.
 	Fallback []*canvas.FontFamily
 
@@ -100,17 +103,28 @@ func faceMap(f config.Face) map[canvas.FontStyle]string {
 	}
 }
 
+// textFaces are the embedded IBM Plex Serif files, by style.
+var textFaces = map[canvas.FontStyle]string{
+	canvas.FontRegular:                  "fonts/IBMPlexSerif-Regular.ttf",
+	canvas.FontBold:                     "fonts/IBMPlexSerif-Bold.ttf",
+	canvas.FontItalic:                   "fonts/IBMPlexSerif-Italic.ttf",
+	canvas.FontBold | canvas.FontItalic: "fonts/IBMPlexSerif-BoldItalic.ttf",
+}
+
+// noLigatures is the shaper feature list that turns ligatures off.
+const noLigatures = "-liga,-clig,-dlig"
+
 // New resolves a Config into a Theme.
 func New(c config.Config) (*Theme, error) {
-	text, err := loadFamily("text", map[canvas.FontStyle]string{
-		canvas.FontRegular:                  "fonts/IBMPlexSerif-Regular.ttf",
-		canvas.FontBold:                     "fonts/IBMPlexSerif-Bold.ttf",
-		canvas.FontItalic:                   "fonts/IBMPlexSerif-Italic.ttf",
-		canvas.FontBold | canvas.FontItalic: "fonts/IBMPlexSerif-BoldItalic.ttf",
-	}, faceMap(c.Fonts.Text))
+	text, err := loadFamily("text", textFaces, faceMap(c.Fonts.Text))
 	if err != nil {
 		return nil, err
 	}
+	linkText, err := loadFamily("text-link", textFaces, faceMap(c.Fonts.Text))
+	if err != nil {
+		return nil, err
+	}
+	linkText.SetFeatures(noLigatures)
 	mono, err := loadFamily("mono", map[canvas.FontStyle]string{
 		canvas.FontRegular: "fonts/IBMPlexMono-Regular.ttf",
 		canvas.FontBold:    "fonts/IBMPlexMono-Bold.ttf",
@@ -119,6 +133,7 @@ func New(c config.Config) (*Theme, error) {
 	if err != nil {
 		return nil, err
 	}
+	mono.SetFeatures(noLigatures) // code is copied and pasted; keep it literal
 
 	var fallback []*canvas.FontFamily
 	for i, path := range c.Fonts.Fallback {
@@ -149,7 +164,7 @@ func New(c config.Config) (*Theme, error) {
 		MarginLeft: c.Page.Left, MarginRight: c.Page.Right,
 		FooterGap: 10,
 
-		Text: text, Mono: mono, Fallback: fallback,
+		Text: text, LinkText: linkText, Mono: mono, Fallback: fallback,
 
 		BodySize:   c.Type.BodySize,
 		CodeSize:   c.Type.CodeSize,
