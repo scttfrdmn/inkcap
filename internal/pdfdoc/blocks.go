@@ -86,13 +86,109 @@ func joinLines(lines [][]Run) []Run {
 	return out
 }
 
-// fitLines finds the largest k such that lines[:k] is no taller than avail.
-// Binary search: each probe is one relayout, so this is O(log n) layouts.
-func fitLines(lines [][]Run, w, avail float64, halign canvas.TextAlign, opts *canvas.TextOptions) int {
+const (
+	zwsp = '\u200B' // zero-width space: an invisible optional break
+	shy  = '\u00AD' // soft hyphen: an optional break shown as "-" when used
+)
+
+// lineCuts maps each laid-out line back to the rune offset in the runs' text
+// where it starts; cuts[len(lines)] is the end of the text. With these, a split
+// cuts the ORIGINAL runs (faces, links, soft hyphens and zero-width spaces
+// intact) instead of rebuilding text from the laid-out spans, which can't tell
+// whether a line ended at a space, a zero-width space or a soft hyphen.
+// Returns nil if the lines can't be aligned (e.g. runs holding images).
+func lineCuts(runs []Run, lines [][]Run) []int {
+	var src []rune
+	for _, r := range runs {
+		if r.Img != nil || r.SVG != nil {
+			return nil
+		}
+		src = append(src, []rune(r.Text)...)
+	}
+	isSep := func(r rune) bool { return r == ' ' || r == '\t' || r == zwsp || r == shy }
+	pos := 0
+	cuts := make([]int, 0, len(lines)+1)
+	for i, ln := range lines {
+		if i > 0 {
+			for pos < len(src) && isSep(src[pos]) {
+				pos++
+			}
+		}
+		cuts = append(cuts, pos)
+		for _, r := range []rune(plainText(ln)) {
+			// unused optional breaks inside the line are absent from its text
+			for pos < len(src) && src[pos] != r && (src[pos] == zwsp || src[pos] == shy) {
+				pos++
+			}
+			switch {
+			case pos < len(src) && src[pos] == r:
+				pos++
+			case r == '-' && pos < len(src) && src[pos] == shy:
+				pos++ // a soft hyphen used as the line's break
+			default:
+				return nil
+			}
+		}
+	}
+	return append(cuts, len(src))
+}
+
+// cutRuns returns runs restricted to the rune range [from, to), keeping each
+// run's face and link.
+func cutRuns(runs []Run, from, to int) []Run {
+	var out []Run
+	off := 0
+	for _, r := range runs {
+		rs := []rune(r.Text)
+		a, b := max(from-off, 0), min(to-off, len(rs))
+		if a < b {
+			c := r
+			c.Text = string(rs[a:b])
+			out = append(out, c)
+		}
+		off += len(rs)
+	}
+	return out
+}
+
+// headRuns is the first part of a split: runs up to cut, with the line break
+// it ends on made explicit. Trailing spaces, zero-width spaces and a hard-break
+// newline are dropped, and a trailing soft hyphen becomes a real "-", since it
+// was the break and must still show once the head is laid out on its own.
+func headRuns(runs []Run, cut int) []Run {
+	out := cutRuns(runs, 0, cut)
+	for n := len(out); n > 0; n = len(out) {
+		t := strings.TrimRight(out[n-1].Text, " \t\n\u200B")
+		if strings.HasSuffix(t, "\u00AD") {
+			t = strings.TrimSuffix(t, "\u00AD") + "-"
+		}
+		if t != "" {
+			out[n-1].Text = t
+			break
+		}
+		out = out[:n-1]
+	}
+	return out
+}
+
+// splitAt returns the head and tail run lists for breaking after line k,
+// cutting the original runs where possible and falling back to rebuilding
+// from the laid-out lines.
+func splitAt(runs []Run, lines [][]Run, cuts []int, k int) (head, tail []Run) {
+	if cuts != nil {
+		return headRuns(runs, cuts[k]), cutRuns(runs, cuts[k], cuts[len(cuts)-1])
+	}
+	return joinLines(lines[:k]), joinLines(lines[k:])
+}
+
+// fitLines finds the largest k such that the first k lines are no taller than
+// avail. Binary search: each probe is one relayout, so O(log n) layouts.
+func fitLines(runs []Run, lines [][]Run, cuts []int, w, avail float64, halign canvas.TextAlign, opts *canvas.TextOptions) int {
 	lo, hi := 0, len(lines)
 	for lo < hi {
 		mid := (lo + hi + 1) / 2
-		t := buildText(joinLines(lines[:mid]), w, halign, opts)
+		head, _ := splitAt(runs, lines, cuts, mid)
+		t := buildText(head, w, halign, opts)
 		if t != nil && t.Height <= avail && t.Lines() <= mid {
 			lo = mid
 		} else {
@@ -159,7 +255,8 @@ func (p *Para) Split(w, avail float64) (Block, Block, bool) {
 		return nil, p, true
 	}
 	lines := extractLines(t)
-	k := fitLines(lines, w, avail, p.Align, p.Opts)
+	cuts := lineCuts(p.Runs, lines)
+	k := fitLines(p.Runs, lines, cuts, w, avail, p.Align, p.Opts)
 
 	// Orphan/widow control: don't leave fewer than Orphan lines behind, and
 	// don't carry fewer than Widow lines forward. If either rule is violated
@@ -171,7 +268,8 @@ func (p *Para) Split(w, avail float64) (Block, Block, bool) {
 				return nil, p, true
 			}
 			// re-verify the adjusted head still fits
-			ht := buildText(joinLines(lines[:k]), w, p.Align, p.Opts)
+			hr, _ := splitAt(p.Runs, lines, cuts, k)
+			ht := buildText(hr, w, p.Align, p.Opts)
 			if ht == nil || ht.Height > avail {
 				return nil, p, true
 			}
@@ -183,11 +281,9 @@ func (p *Para) Split(w, avail float64) (Block, Block, bool) {
 		return nil, p, true
 	}
 
-	head := *p
-	head.Runs = joinLines(lines[:k])
+	head, tail := *p, *p
+	head.Runs, tail.Runs = splitAt(p.Runs, lines, cuts, k)
 	head.after = 0
-	tail := *p
-	tail.Runs = joinLines(lines[k:])
 	tail.before = 0
 	return &head, &tail, true
 }

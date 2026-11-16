@@ -14,6 +14,10 @@ All notable changes to inkcap. The format follows
   rejected with an error explaining the change. Documents get shorter (#71).
 
 ### Fixed
+- Long URLs, paths and identifiers wrap instead of running off the page or
+  across table columns: invisible break points go after `/ ? & #`, at
+  camelCase boundaries, and every 20 characters at most. Paragraph and table
+  splits now cut the original text, so nothing is inserted at a break (#60).
 - Soft hyphens (U+00AD) no longer garble justified text (#69). inkcap now builds
   against `github.com/scttfrdmn/canvas`, a module-renamed fork of tdewolff/canvas
   carrying the fix proposed upstream in tdewolff/canvas#397.

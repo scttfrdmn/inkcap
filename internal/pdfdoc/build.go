@@ -57,6 +57,7 @@ type builder struct {
 	warn    []string
 	missing map[rune]bool                           // runes already warned about, deduped
 	quotes  int                                     // blockquotes seen, for Bar IDs
+	inTable bool                                    // building table cells: their widths are only known at layout
 	ids     map[string]bool                         // heading anchors handed out so far
 	monoFB  map[*canvas.FontFace][]*canvas.FontFace // code fallback faces, per primary
 	targets []string                                // "#..." link targets, checked once all ids exist
@@ -253,6 +254,7 @@ func (b *builder) emit(s style, txt string, out *[]Run) {
 	if txt == "" {
 		return
 	}
+	txt = b.breakPoints(s, txt)
 	primary := b.face(s)
 	if s.link != "" {
 		b.links[primary] = s.link
@@ -274,6 +276,110 @@ func (b *builder) emit(s style, txt string, out *[]Run) {
 		cur.WriteRune(r)
 	}
 	flush()
+}
+
+// breakPoints adds optional break points to long tokens in txt. In table
+// cells, whose widths aren't known until layout, any token of 12+ characters
+// (code, links) or 24+ (prose) gets them, so columns can shrink. Elsewhere only
+// a token wider than 70% of the text width does: a narrower one can always
+// move to a line of its own. Break points aren't free (each is a candidate the
+// Knuth-Plass breaker weighs on every layout pass), and adding them to every
+// moderately long URL nearly doubled render time.
+func (b *builder) breakPoints(s style, txt string) string {
+	minLen := 24
+	if s.code || s.link != "" {
+		minLen = 12
+	}
+	if b.inTable {
+		return breakable(txt, minLen)
+	}
+	limit := 0.7 * b.t.ContentW()
+	var f *canvas.FontFace
+	for _, tok := range strings.FieldsFunc(txt, unicode.IsSpace) {
+		if utf8.RuneCountInString(tok) < minLen {
+			continue
+		}
+		if f == nil {
+			f = b.face(s)
+		}
+		if f.TextWidth(tok) > limit {
+			return breakable(txt, minLen)
+		}
+	}
+	return txt
+}
+
+// breakAfter are the characters after which a long URL, path or identifier
+// may wrap.
+const breakAfter = "/?&#"
+
+// breakable inserts zero-width spaces (invisible optional breaks) into every
+// whitespace-separated token of at least minLen characters, so a long URL,
+// path or identifier can wrap instead of running off the page or across a
+// table cell (#60). Break points go after the characters in breakAfter (but
+// not inside "://" or "//"), at camelCase boundaries, and, where a token
+// still runs 20 characters without one, every 20 characters. Break points
+// are kept sparse on purpose: each one is a candidate the Knuth-Plass
+// breaker must weigh on every layout, and dense ones doubled render time. Short tokens are
+// left alone, and the text reads and copies the same: the zero-width space
+// draws nothing.
+func breakable(txt string, minLen int) string {
+	const maxRun = 20
+	fields := strings.FieldsFunc(txt, unicode.IsSpace)
+	long := false
+	for _, f := range fields {
+		if utf8.RuneCountInString(f) >= minLen {
+			long = true
+			break
+		}
+	}
+	if !long {
+		return txt
+	}
+	var sb strings.Builder
+	rs := []rune(txt)
+	for i := 0; i < len(rs); {
+		if unicode.IsSpace(rs[i]) {
+			sb.WriteRune(rs[i])
+			i++
+			continue
+		}
+		j := i
+		for j < len(rs) && !unicode.IsSpace(rs[j]) {
+			j++
+		}
+		tok := rs[i:j]
+		if len(tok) < minLen {
+			sb.WriteString(string(tok))
+		} else {
+			run := 0 // characters since the last break opportunity
+			for k, r := range tok {
+				next := rune(0)
+				if k+1 < len(tok) {
+					next = tok[k+1]
+				}
+				if k > 0 && unicode.IsUpper(r) && unicode.IsLower(tok[k-1]) && run >= 3 {
+					sb.WriteRune(zwsp) // camelCase boundary
+					run = 0
+				}
+				sb.WriteRune(r)
+				run++
+				switch {
+				case next == 0:
+				case strings.ContainsRune(breakAfter, r) && next != '/' && !strings.ContainsRune(breakAfter, next):
+					sb.WriteRune(zwsp)
+					run = 0
+				case r == '-' || r == zwsp || r == shy:
+					run = 0 // canvas already breaks here
+				case run >= maxRun:
+					sb.WriteRune(zwsp)
+					run = 0
+				}
+			}
+		}
+		i = j
+	}
+	return sb.String()
 }
 
 // warnRune records a rune that no configured font can render, once each.
@@ -501,7 +607,7 @@ func (b *builder) block(n ast.Node, indent float64, bars []Bar, marker *Marker, 
 		runs := b.runs(v, hs)
 		// Footnote ref markers are superscript digits in the runs; they must
 		// not leak into the title, running header, outline or TOC.
-		plain := plainText(withoutRefs(runs, b.notes))
+		plain := strings.ReplaceAll(plainText(withoutRefs(runs, b.notes)), string(zwsp), "")
 		if lvl == 1 && b.title == "" {
 			b.title = plain
 		}
@@ -884,7 +990,9 @@ func (b *builder) table(v *xast.Table, indent float64, bars []Bar, marker *Marke
 			if hdr {
 				s.weight = canvas.FontBold
 			}
+			b.inTable = true
 			cells = append(cells, Cell{Runs: b.runs(tc, s), Align: align(tc.Alignment)})
+			b.inTable = false
 		}
 		if hdr {
 			tb.Head = cells

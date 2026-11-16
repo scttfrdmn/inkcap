@@ -2,6 +2,7 @@ package pdfdoc
 
 import (
 	"strings"
+	"unicode"
 
 	"github.com/scttfrdmn/canvas"
 )
@@ -25,7 +26,9 @@ type Table struct {
 func cellWidths(runs []Run) (min, max float64) {
 	for _, r := range runs {
 		max += r.Face.TextWidth(r.Text)
-		for _, word := range strings.Fields(r.Text) {
+		// zero-width spaces (inserted into long URLs and identifiers) are
+		// break points too, so they bound the unbreakable minimum
+		for _, word := range strings.FieldsFunc(r.Text, func(c rune) bool { return unicode.IsSpace(c) || c == zwsp }) {
 			if w := r.Face.TextWidth(word); w > min {
 				min = w
 			}
@@ -145,6 +148,7 @@ func (tb *Table) splitRow(row []Cell, widths []float64, avail float64) (head, ta
 	}
 	// Lay every cell out, then find the largest common line count that fits.
 	lines := make([][][]Run, len(row))
+	cuts := make([][]int, len(row))
 	maxN := 0
 	for i, c := range row {
 		if i >= len(widths) {
@@ -152,6 +156,7 @@ func (tb *Table) splitRow(row []Cell, widths []float64, avail float64) (head, ta
 		}
 		cw := widths[i] - 2*tb.PadX
 		lines[i] = extractLines(buildText(c.Runs, cw, c.Align, tb.T.textOpts()))
+		cuts[i] = lineCuts(c.Runs, lines[i])
 		if n := len(lines[i]); n > maxN {
 			maxN = n
 		}
@@ -165,7 +170,8 @@ func (tb *Table) splitRow(row []Cell, widths []float64, avail float64) (head, ta
 			if i >= len(widths) || k > len(lines[i]) {
 				continue
 			}
-			t := buildText(joinLines(lines[i][:k]), widths[i]-2*tb.PadX, row[i].Align, tb.T.textOpts())
+			hr, _ := splitAt(row[i].Runs, lines[i], cuts[i], k)
+			t := buildText(hr, widths[i]-2*tb.PadX, row[i].Align, tb.T.textOpts())
 			if t != nil && t.Height > h {
 				h = t.Height
 			}
@@ -193,8 +199,7 @@ func (tb *Table) splitRow(row []Cell, widths []float64, avail float64) (head, ta
 			continue
 		}
 		if lo < len(lines[i]) {
-			head[i].Runs = joinLines(lines[i][:lo])
-			tail[i].Runs = joinLines(lines[i][lo:])
+			head[i].Runs, tail[i].Runs = splitAt(c.Runs, lines[i], cuts[i], lo)
 		} else {
 			head[i].Runs = c.Runs
 		}
