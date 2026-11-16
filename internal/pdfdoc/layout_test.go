@@ -391,3 +391,64 @@ func TestQuoteBars(t *testing.T) {
 		t.Errorf("two separate quotes: %d segments, want 2", len(segs))
 	}
 }
+
+// When a page's footnotes can't all fit (here: one paragraph with 80 long
+// notes), the excess continues on following pages instead of being drawn over
+// the body. Every note appears exactly once, in order, never before the page
+// that references it, and no page's notes overlap its text.
+func TestFootnoteOverflowContinues(t *testing.T) {
+	th := theme(t, nil)
+	var sb strings.Builder
+	sb.WriteString("# Doc\n\nA paragraph with many notes")
+	for i := 1; i <= 80; i++ {
+		sb.WriteString("[^" + itoa(i) + "]")
+	}
+	sb.WriteString(".\n\nAnother paragraph.\n\n")
+	long := strings.Repeat("A long footnote sentence that takes up real space. ", 3)
+	for i := 1; i <= 80; i++ {
+		sb.WriteString("[^" + itoa(i) + "]: " + long + "\n\n")
+	}
+	d := parse(t, sb.String(), th)
+	pages := d.paginate(d.Items)
+
+	bottom := th.PageH - th.MarginBottom
+	refPage := map[int]int{}
+	for i, p := range pages {
+		for _, pl := range p.Items {
+			for _, n := range pl.It.B.Refs(d.Notes) {
+				if _, ok := refPage[n]; !ok {
+					refPage[n] = i
+				}
+			}
+		}
+	}
+	var seen []int
+	for i, p := range pages {
+		nh := d.notesHeight(p.Notes)
+		if nh > th.ContentH()+0.01 {
+			t.Errorf("page %d: notes %.0fmm taller than the text area", i+1, nh)
+		}
+		for _, pl := range p.Items {
+			if end := pl.Y + pl.H; end > bottom-nh+0.01 {
+				t.Errorf("page %d: body ends at %.1fmm, under notes starting at %.1fmm", i+1, end, bottom-nh)
+			}
+		}
+		for _, n := range p.Notes {
+			if i < refPage[n] {
+				t.Errorf("note %d on page %d, before its reference on page %d", n, i+1, refPage[n]+1)
+			}
+			seen = append(seen, n)
+		}
+	}
+	if len(seen) != 80 {
+		t.Fatalf("%d notes placed, want 80", len(seen))
+	}
+	for i, n := range seen {
+		if n != i+1 {
+			t.Fatalf("notes out of order or duplicated at %d: %v", i, seen)
+		}
+	}
+	if len(pages) < 3 {
+		t.Fatalf("only %d pages; the notes didn't need to continue (vacuous)", len(pages))
+	}
+}

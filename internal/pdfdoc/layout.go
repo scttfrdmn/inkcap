@@ -85,21 +85,52 @@ func mergeNotes(cur, add []int) []int {
 // pagination
 // ---------------------------------------------------------------------------
 
+// noteCapFrac caps the footnote area at this fraction of the text height.
+// Notes that would push past it continue on the next page, as in TeX, rather
+// than being drawn up over the body (#70). Below the cap, every note still
+// lands on the page that references it.
+const noteCapFrac = 0.6
+
+// fitNotes splits ids, in order, into the notes that fit within capH and the
+// rest. A single note taller than the cap is kept anyway (it can't be split),
+// so a page always makes progress.
+func (d *Doc) fitNotes(ids []int, capH float64) (keep, rest []int) {
+	for i, n := range ids {
+		if i > 0 && d.notesHeight(append(slices.Clone(keep), n)) > capH {
+			return keep, slices.Clone(ids[i:])
+		}
+		keep = append(keep, n)
+	}
+	return keep, nil
+}
+
 func (d *Doc) paginate(items []Item) []Page {
 	t := d.T
 	contentW := t.ContentW()
 	top := t.MarginTop
 	bottom := t.PageH - t.MarginBottom
 	keepMin := 2 * t.bodyLine()
+	noteCap := t.ContentH() * noteCapFrac
 
 	var pages []Page
 	cur := Page{}
 	y := top
+	var carry []int // notes deferred from earlier pages, placed before any new ones
 
+	// pageNotes decides which notes this page shows if it also takes refs,
+	// and which are deferred. Deferred notes keep their order, and new refs
+	// never jump ahead of notes already waiting.
+	pageNotes := func(refs []int) (keep, rest []int) {
+		if len(carry) > 0 {
+			return cur.Notes, mergeNotes(carry, refs)
+		}
+		return d.fitNotes(mergeNotes(cur.Notes, refs), noteCap)
+	}
 	flush := func() {
 		pages = append(pages, cur)
 		cur = Page{}
 		y = top
+		cur.Notes, carry = d.fitNotes(carry, noteCap)
 	}
 
 	queue := slices.Clone(items)
@@ -116,8 +147,7 @@ func (d *Doc) paginate(items []Item) []Page {
 		// Reserve room for any footnotes this block would drag onto the page.
 		// A split fragment can only carry a subset of them, so reserving for
 		// the whole block is conservative and always safe.
-		refs := it.B.Refs(d.Notes)
-		notes := mergeNotes(cur.Notes, refs)
+		notes, deferred := pageNotes(it.B.Refs(d.Notes))
 		avail := bottom - y - sb - d.notesHeight(notes)
 
 		h := it.B.Measure(w)
@@ -129,7 +159,7 @@ func (d *Doc) paginate(items []Item) []Page {
 		if need <= avail {
 			y += sb
 			cur.Items = append(cur.Items, Placed{It: it, X: x, Y: y, W: w, H: h})
-			cur.Notes = notes
+			cur.Notes, carry = notes, deferred
 			y += h + it.B.SpaceAfter()
 			queue = queue[1:]
 			continue
@@ -148,7 +178,7 @@ func (d *Doc) paginate(items []Item) []Page {
 				// Won't fit on an empty page either. Draw it and let it bleed
 				// rather than loop forever.
 				cur.Items = append(cur.Items, Placed{It: it, X: x, Y: y, W: w, H: h})
-				cur.Notes = notes
+				cur.Notes, carry = notes, deferred
 				y += h + it.B.SpaceAfter()
 				queue = queue[1:]
 				continue
@@ -160,7 +190,7 @@ func (d *Doc) paginate(items []Item) []Page {
 		y += sb
 		hh := head.B.Measure(w)
 		cur.Items = append(cur.Items, Placed{It: *head, X: x, Y: y, W: w, H: hh})
-		cur.Notes = mergeNotes(cur.Notes, head.B.Refs(d.Notes))
+		cur.Notes, carry = pageNotes(head.B.Refs(d.Notes))
 		if tail == nil {
 			y += hh + head.B.SpaceAfter()
 			queue = queue[1:]
@@ -169,8 +199,14 @@ func (d *Doc) paginate(items []Item) []Page {
 		queue[0] = *tail
 		flush()
 	}
-	if len(cur.Items) > 0 || len(pages) == 0 {
+	if len(cur.Items) > 0 || len(cur.Notes) > 0 || len(pages) == 0 {
 		pages = append(pages, cur)
+	}
+	// Notes still waiting after the last block get pages of their own.
+	for len(carry) > 0 {
+		var p Page
+		p.Notes, carry = d.fitNotes(carry, t.ContentH())
+		pages = append(pages, p)
 	}
 	return pages
 }

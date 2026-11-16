@@ -7,6 +7,8 @@ All notable changes to inkcap. The format follows
 ## [Unreleased]
 
 ### Fixed
+- Footnotes that can't fit at the foot of their page continue on the next
+  page instead of being drawn over the body (#70).
 - List markers: `1)` keeps its delimiter, wide numbers like `100.` widen the
   list instead of sticking into the margin, a marker before a code block, table
   or heading sits on its first line, empty items keep their marker, and `- - x`

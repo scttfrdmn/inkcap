@@ -276,8 +276,9 @@ A `#name` link with no matching heading is reported on stderr.
 
 `footnotes = "page" | "end" | "none"`. Page mode reserves the footnote area
 before deciding whether a block fits, so a paragraph is broken *earlier* on a
-page that has to carry three notes. Notes always land on the page that
-references them.
+page that has to carry three notes. Notes land on the page that references
+them; only if they would fill more than 60% of a page does the excess continue
+at the foot of the next page, in order, as in TeX.
 
 ## Table column widths
 
@@ -322,7 +323,8 @@ mutation-checked (break the code, watch them fail):
 - a heading, or a chain of headings, is never the last thing on a page
 - no paragraph fragment is shorter than the orphan/widow thresholds
 - nothing is laid out past the bottom margin, footnote area included
-- every footnote lands on the page that references it
+- every footnote lands on the page that references it, or continues in order
+  on later pages when there are too many to fit
 - a table repeats its header on every continuation
 - a row taller than a page terminates rather than looping
 - the TOC reaches a fixed point and its numbers are correct
