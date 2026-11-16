@@ -52,14 +52,15 @@ var smartPunct = extension.NewTypographer(extension.WithTypographicSubstitutions
 
 // Doc is a paginate-ready flow plus the side tables the renderer needs.
 type Doc struct {
-	Items []Item
-	Links map[*canvas.FontFace]string // face -> URL
-	Notes map[*canvas.FontFace]int    // face -> footnote number (the ref markers)
-	Body  map[int]Note                // footnote number -> content
-	Title string
-	Meta  Meta // from front matter, if any
-	Warn  []string
-	T     *Theme
+	Items     []Item
+	Links     map[*canvas.FontFace]string // face -> URL
+	Notes     map[*canvas.FontFace]int    // face -> footnote number (the ref markers)
+	Body      map[int]Note                // footnote number -> content
+	noteCache map[int][]Item              // footnote items with their number, see noteItems
+	Title     string
+	Meta      Meta // from front matter, if any
+	Warn      []string
+	T         *Theme
 }
 
 type builder struct {
@@ -777,19 +778,22 @@ func (b *builder) block(n ast.Node, indent float64, bars []Bar, marker *Marker, 
 		if t.Footnotes == "none" {
 			return
 		}
+		nt := noteTheme(t)
 		for fn := n.FirstChild(); fn != nil; fn = fn.NextSibling() {
 			f, ok := fn.(*xast.Footnote)
 			if !ok {
 				continue
 			}
-			var runs []Run
-			for c := f.FirstChild(); c != nil; c = c.NextSibling() {
-				if _, isBack := c.(*xast.FootnoteBacklink); isBack {
-					continue
+			// A footnote holds blocks (several paragraphs, a list, code), so
+			// build them with the ordinary flow builder at the small size.
+			sub := b.child(nt)
+			sub.blocks(f, 0, nil, nil, 0)
+			for _, w := range sub.warn {
+				if !slices.Contains(b.warn, w) {
+					b.warn = append(b.warn, w)
 				}
-				b.inline(c, style{size: t.SmallSize}, &runs)
 			}
-			b.body[f.Index] = Note{Num: f.Index, Runs: runs}
+			b.body[f.Index] = Note{Num: f.Index, Items: sub.items}
 		}
 		// Footnotes are not part of the flow: the paginator places them.
 
@@ -889,6 +893,40 @@ func (b *builder) sectionNumber(lvl int) string {
 		parts[j] = strconv.Itoa(b.secs[j])
 	}
 	return strings.Join(parts, ".")
+}
+
+// noteTheme is the theme footnote content is built with: everything at the
+// small size, with tighter spacing.
+func noteTheme(t *Theme) *Theme {
+	nt := *t
+	nt.BodySize = t.SmallSize
+	nt.CodeSize = min(t.CodeSize, t.SmallSize*0.92)
+	for i := range nt.HeadSize {
+		nt.HeadSize[i] = t.SmallSize
+		nt.HeadSpaceHi[i] = t.HeadSpaceHi[i] * 0.5
+		nt.HeadSpaceLo[i] = t.HeadSpaceLo[i] * 0.5
+	}
+	nt.ParaSpace = 1.2
+	nt.BlockSpace = 1.4
+	nt.CodePad = t.CodePad * 0.7
+	return &nt
+}
+
+// child returns a builder for nested content (footnotes) with its own theme
+// and item list, sharing the document-wide tables: links, footnote refs and
+// bodies, anchors, and missing-glyph bookkeeping.
+func (b *builder) child(t *Theme) *builder {
+	if b.missing == nil {
+		b.missing = map[rune]bool{}
+	}
+	if b.ids == nil {
+		b.ids = map[string]bool{}
+	}
+	return &builder{
+		t: t, src: b.src, base: b.base,
+		links: b.links, notes: b.notes, body: b.body,
+		missing: b.missing, ids: b.ids, quotes: b.quotes + 1000,
+	}
 }
 
 // headingID is the heading's explicit {#id} if it has one, else the

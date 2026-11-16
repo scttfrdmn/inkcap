@@ -6,6 +6,11 @@ All notable changes to inkcap. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- Footnotes keep their structure: several paragraphs, lists and code blocks
+  render in the footnote area and the endnotes instead of being flattened into
+  one line with the code dropped (#81).
+
 ### Added
 - GitHub alerts: `> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`
   render with a coloured bar and bold label (colours in `[colors]`) (#77).

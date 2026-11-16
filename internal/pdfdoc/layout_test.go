@@ -1,6 +1,8 @@
 package pdfdoc
 
 import (
+	"bytes"
+	"math"
 	"strings"
 	"testing"
 
@@ -520,5 +522,63 @@ func TestPageBreaks(t *testing.T) {
 	}
 	if !foundTOC {
 		t.Error("TOC is not on the first page")
+	}
+}
+
+// Footnotes hold blocks: several paragraphs, a list and a code block survive
+// (they used to be flattened into one line, with the code dropped), the
+// number leads the first paragraph, and endnotes mode carries the same blocks.
+func TestBlockFootnotes(t *testing.T) {
+	src := "Body text[^a] and more[^b].\n\n" +
+		"[^a]: First paragraph.\n\n    Second paragraph.\n\n    - one\n    - two\n\n" +
+		"[^b]: Code:\n\n    ```go\n    x := 1\n    ```\n"
+	for _, mode := range []string{"page", "end"} {
+		th := theme(t, func(c *config.Config) { c.Document.Footnotes = mode })
+		d := parse(t, src, th)
+		var kinds []string
+		var texts []string
+		items := d.noteItems(1)
+		items = append(items, d.noteItems(2)...)
+		for _, it := range items {
+			switch v := it.B.(type) {
+			case *Para:
+				kinds = append(kinds, "para")
+				texts = append(texts, plainText(v.Runs))
+			case *Code:
+				kinds = append(kinds, "code")
+				texts = append(texts, plainText(v.Lines[0]))
+			default:
+				kinds = append(kinds, "?")
+			}
+		}
+		want := "para para para para para code"
+		if got := strings.Join(kinds, " "); got != want {
+			t.Errorf("%s: note blocks = %q, want %q", mode, got, want)
+		}
+		if len(texts) < 4 || texts[0] != "1 First paragraph." || texts[1] != "Second paragraph." || texts[2] != "one" {
+			t.Errorf("%s: note texts = %q", mode, texts)
+		}
+		if mode == "end" {
+			// the blocks are in the flow after the Notes heading
+			sawCode := false
+			for _, it := range d.endNotes(d.Items) {
+				if _, ok := it.B.(*Code); ok {
+					sawCode = true
+				}
+			}
+			if !sawCode {
+				t.Error("end mode: the footnote's code block is not in the flow")
+			}
+			continue
+		}
+		// page mode: the reserved height matches what is drawn, and it renders
+		_, end := d.noteFlow(d.noteItems(1), 10)
+		if got := d.noteHeight(1); math.Abs((end-10)-got) > 1e-9 {
+			t.Errorf("noteHeight %.2f != drawn height %.2f", got, end-10)
+		}
+		var buf bytes.Buffer
+		if err := d.Render(&buf, ""); err != nil {
+			t.Fatal(err)
+		}
 	}
 }

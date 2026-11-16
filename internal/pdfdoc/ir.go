@@ -81,10 +81,12 @@ type Block interface {
 	Refs(reg map[*canvas.FontFace]int) []int
 }
 
-// Note is a footnote: its number and its (already styled) content.
+// Note is a footnote: its number and its content as block items (paragraphs,
+// lists, code...), built at the small size and laid out as a mini-flow in the
+// footnote area or the endnotes.
 type Note struct {
-	Num  int
-	Runs []Run
+	Num   int
+	Items []Item
 }
 
 // Item wraps a Block with its position in the (flattened) nesting structure.

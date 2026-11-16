@@ -40,23 +40,67 @@ type Page struct {
 
 const noteSep = 22.0 // length of the rule above the footnote area, mm
 
-// noteRuns renders footnote n as a superscript number followed by its text.
-func (d *Doc) noteRuns(n int) []Run {
+// noteItems returns footnote n's items with its number in front: prepended to
+// the first paragraph, or as a line of its own if the note starts with
+// something else (a list, code). Cached, so layout and drawing agree.
+func (d *Doc) noteItems(n int) []Item {
+	if items, ok := d.noteCache[n]; ok {
+		return items
+	}
 	t := d.T
 	note, ok := d.Body[n]
 	if !ok {
 		return nil
 	}
-	sup := t.Text.Face(t.SmallSize, t.Muted, canvas.FontSuperscript)
-	return append([]Run{{Face: sup, Text: strconv.Itoa(n) + " "}}, note.Runs...)
+	sup := Run{Face: t.Text.Face(t.SmallSize, t.Muted, canvas.FontSuperscript), Text: strconv.Itoa(n) + " "}
+	items := slices.Clone(note.Items)
+	if p, ok := firstPara(items); ok {
+		cp := *p
+		cp.Runs = append([]Run{sup}, p.Runs...)
+		items[0].B = &cp
+	} else {
+		items = append([]Item{{B: &Para{
+			base: base{keep: true}, Runs: []Run{sup}, Align: canvas.Left,
+			Opts: t.textOpts(), Orphan: 1, Widow: 1,
+		}}}, items...)
+	}
+	if d.noteCache == nil {
+		d.noteCache = map[int][]Item{}
+	}
+	d.noteCache[n] = items
+	return items
+}
+
+// firstPara reports whether items starts with a plain (unmarked, unquoted)
+// paragraph the footnote number can lead.
+func firstPara(items []Item) (*Para, bool) {
+	if len(items) == 0 || items[0].Marker != nil || len(items[0].Bars) > 0 {
+		return nil, false
+	}
+	p, ok := items[0].B.(*Para)
+	return p, ok
+}
+
+// noteFlow places a footnote's items one after another from y, at the left
+// margin, across the text width: the same spacing rule as the paginator.
+func (d *Doc) noteFlow(items []Item, y float64) ([]Placed, float64) {
+	t := d.T
+	w := t.ContentW()
+	var out []Placed
+	for i, it := range items {
+		if i > 0 {
+			y += items[i-1].B.SpaceAfter() + it.B.SpaceBefore()
+		}
+		h := it.height(w)
+		out = append(out, Placed{It: it, X: t.MarginLeft + it.Indent, Y: y, W: w - it.Indent, H: h})
+		y += h
+	}
+	return out, y
 }
 
 func (d *Doc) noteHeight(n int) float64 {
-	t := buildText(d.noteRuns(n), d.T.ContentW(), canvas.Left, d.T.textOpts())
-	if t == nil {
-		return 0
-	}
-	return t.Height
+	_, end := d.noteFlow(d.noteItems(n), 0)
+	return end
 }
 
 // notesHeight is the total vertical space a set of footnotes will consume,
@@ -334,13 +378,14 @@ func (d *Doc) endNotes(items []Item) []Item {
 		Plain: "Notes", Opts: t.textOpts(), Rule: t.HeadingRules >= 2, T: t,
 	}})
 	for _, n := range nums {
-		out = append(out, Item{B: &Para{
-			base:   base{after: 1.2},
-			Runs:   d.noteRuns(n),
-			Align:  canvas.Left,
-			Opts:   t.textOpts(),
-			Orphan: 1, Widow: 1,
-		}})
+		items := d.noteItems(n)
+		if len(items) == 0 {
+			continue
+		}
+		out = append(out, items...)
+		if sp, ok := out[len(out)-1].B.(spacer); ok {
+			sp.ensureAfter(1.2 + t.ParaSpace)
+		}
 	}
 	return out
 }
@@ -563,9 +608,12 @@ func (d *Doc) drawNotes(r *Rctx, ids []int) {
 	y += 2.0
 
 	for _, n := range ids {
-		nt := buildText(d.noteRuns(n), t.ContentW(), canvas.Left, t.textOpts())
-		drawRuns(r, nt, t.MarginLeft, y)
-		y += d.noteHeight(n) + 0.8
+		placed, end := d.noteFlow(d.noteItems(n), y)
+		d.drawQuoteBars(r, quoteBars(placed, t))
+		for _, pl := range placed {
+			d.paint(r, pl)
+		}
+		y = end + 0.8
 	}
 }
 
