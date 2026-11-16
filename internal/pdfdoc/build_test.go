@@ -421,3 +421,19 @@ func TestMarkerOnFirstBaseline(t *testing.T) {
 		}
 	}
 }
+
+// typography.smart_punctuation turns straight quotes, -- / --- and ... into
+// typographic characters in prose (not code), and is off by default.
+func TestSmartPunctuation(t *testing.T) {
+	src := "\"Quoted\" and 'single', it's -- en --- em... `\"code\" -- ...` a << b >> c\n"
+	off := plainText(parse(t, src, theme(t, nil)).Items[0].B.(*Para).Runs)
+	if off != "\"Quoted\" and 'single', it's -- en --- em... \"code\" -- ... a << b >> c" {
+		t.Errorf("default changed punctuation: %q", off)
+	}
+	th := theme(t, func(c *config.Config) { c.Type.SmartPunct = true })
+	on := plainText(parse(t, src, th).Items[0].B.(*Para).Runs)
+	want := "“Quoted” and ‘single’, it’s – en — em… \"code\" -- ... a << b >> c"
+	if on != want {
+		t.Errorf("smart punctuation:\n got %q\nwant %q", on, want)
+	}
+}

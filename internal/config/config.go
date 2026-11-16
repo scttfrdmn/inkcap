@@ -66,7 +66,8 @@ type Typography struct {
 	Justify      bool       `toml:"justify"`
 	Orphans      int        `toml:"orphans"`
 	Widows       int        `toml:"widows"`
-	HeadingRules int        `toml:"heading_rules"` // hairline under H1..Hn; 0 = none
+	HeadingRules int        `toml:"heading_rules"`     // hairline under H1..Hn; 0 = none
+	SmartPunct   bool       `toml:"smart_punctuation"` // "quotes" -> curly, -- and --- -> dashes, ... -> ellipsis
 }
 
 type Spacing struct {
@@ -376,6 +377,7 @@ justify       = true
 orphans       = 2       # min lines left at the foot of a page
 widows        = 2       # min lines carried to the next page
 heading_rules = 2       # hairline under H1..Hn; 0 for none
+smart_punctuation = false  # curly quotes, -- en dash, --- em dash, ... ellipsis (prose only)
 
 [spacing]
 paragraph      = 2.5

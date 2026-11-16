@@ -102,6 +102,7 @@ anything left blank.
 | `orphans` | `2` | min lines left at the foot of a page |
 | `widows` | `2` | min lines carried to the next page |
 | `heading_rules` | `2` | hairline under H1..Hn; `0` for none |
+| `smart_punctuation` | `false` | curly quotes, `--` → –, `---` → —, `...` → … in prose (never in code) |
 
 ### `[spacing]` — all millimetres
 

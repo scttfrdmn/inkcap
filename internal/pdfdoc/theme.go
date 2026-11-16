@@ -58,6 +58,7 @@ type Theme struct {
 	Widows       int
 	Justify      bool
 	HeadingRules int
+	SmartPunct   bool
 
 	ChromaStyle string
 	LineNumbers bool
@@ -196,6 +197,7 @@ func New(c config.Config) (*Theme, error) {
 		Widows:       c.Type.Widows,
 		Justify:      c.Type.Justify,
 		HeadingRules: c.Type.HeadingRules,
+		SmartPunct:   c.Type.SmartPunct,
 
 		ChromaStyle: c.Code.Style,
 		LineNumbers: c.Code.LineNumbers,

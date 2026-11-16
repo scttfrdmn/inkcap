@@ -7,6 +7,8 @@ All notable changes to inkcap. The format follows
 ## [Unreleased]
 
 ### Added
+- `typography.smart_punctuation` (off by default): curly quotes, `--` en dash,
+  `---` em dash and `...` ellipsis in prose; code is never changed (#82).
 - Explicit heading anchors: `## Install {#setup}` sets the anchor that
   `[x](#setup)` and the TOC link to (#83).
 

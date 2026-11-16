@@ -34,6 +34,22 @@ import (
 	"github.com/yuin/goldmark/text"
 )
 
+// smartPunct is goldmark's typographer emitting the characters themselves
+// rather than HTML entities. Code spans and code blocks are never touched.
+// Angle quotes stay off: "<<" and ">>" are common in technical prose.
+var smartPunct = extension.NewTypographer(extension.WithTypographicSubstitutions(map[extension.TypographicPunctuation]string{
+	extension.LeftSingleQuote:  "\u2018",
+	extension.RightSingleQuote: "\u2019",
+	extension.LeftDoubleQuote:  "\u201C",
+	extension.RightDoubleQuote: "\u201D",
+	extension.Apostrophe:       "\u2019",
+	extension.EnDash:           "\u2013",
+	extension.EmDash:           "\u2014",
+	extension.Ellipsis:         "\u2026",
+	extension.LeftAngleQuote:   "<<",
+	extension.RightAngleQuote:  ">>",
+}))
+
 // Doc is a paginate-ready flow plus the side tables the renderer needs.
 type Doc struct {
 	Items []Item
@@ -66,12 +82,16 @@ type builder struct {
 
 // Parse converts markdown source into a block flow.
 func Parse(src []byte, baseDir string, t *Theme) (*Doc, error) {
+	exts := []goldmark.Extender{
+		extension.GFM, // tables, strikethrough, autolinks, task lists
+		extension.Footnote,
+		extension.DefinitionList,
+	}
+	if t.SmartPunct {
+		exts = append(exts, smartPunct)
+	}
 	md := goldmark.New(
-		goldmark.WithExtensions(
-			extension.GFM, // tables, strikethrough, autolinks, task lists
-			extension.Footnote,
-			extension.DefinitionList,
-		),
+		goldmark.WithExtensions(exts...),
 		// "## Install {#setup}": an explicit heading id, as in Pandoc,
 		// kramdown and most static-site generators.
 		goldmark.WithParserOptions(parser.WithAttribute()),
