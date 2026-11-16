@@ -6,6 +6,14 @@ All notable changes to inkcap. The format follows
 
 ## [Unreleased]
 
+### Changed
+- macOS binaries are Developer ID signed and notarized by Apple. The Homebrew
+  cask no longer strips the quarantine flag; Gatekeeper accepts the binary as
+  downloaded (#56).
+- Releases are created as drafts and published only after the uploaded assets
+  verify against `checksums.txt` and both darwin binaries pass a signed,
+  notarized and runs-while-quarantined check on a macOS runner (#56).
+
 ## [0.4.0] — 2026-11-15
 
 ### Fixed

@@ -1,17 +1,28 @@
 name: Release
 
+# draft -> verify -> publish. GoReleaser creates a DRAFT release; the draft's
+# assets are downloaded back and checked, the darwin binaries are verified on a
+# real Mac (signed, notarized, runs quarantined), and only then is the release
+# published. A failed check leaves a draft, so nothing broken reaches users.
+#
+# Caveat: the Homebrew tap, Scoop bucket and GHCR image are pushed during the
+# draft run. If verification fails, the cask/manifest point at a draft release
+# (a loud 404, not a broken binary); fix and `gh run rerun <id>` on the same tag.
+
 on:
   push:
     tags:
       - 'v*'
 
 permissions:
-  contents: write   # create the GitHub Release
-  packages: write   # push the container image to GHCR
+  contents: write   # create the draft, read draft assets, publish
 
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write   # push the container image to GHCR
     steps:
       - uses: actions/checkout@v5
         with:
@@ -23,6 +34,26 @@ jobs:
           go-version: '1.25'
           check-latest: true
           cache: true
+
+      # The notarize: stanza is gated on isEnvSet, so a missing secret would make
+      # goreleaser skip signing and still succeed. Fail here instead, by name.
+      - name: Verify macOS signing material is present
+        env:
+          MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
+          MACOS_SIGN_PASSWORD: ${{ secrets.MACOS_SIGN_PASSWORD }}
+          MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+          MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in MACOS_SIGN_P12 MACOS_SIGN_PASSWORD MACOS_NOTARY_ISSUER_ID \
+                      MACOS_NOTARY_KEY_ID MACOS_NOTARY_KEY; do
+            [ -n "${!name:-}" ] || missing+=("$name")   # indirect: never echo values
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::missing or empty macOS signing secret(s): ${missing[*]}"; exit 1
+          fi
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -37,15 +68,73 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Run GoReleaser
+      - name: Run GoReleaser (draft)
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
           version: '~> v2'
-          args: release --clean
+          args: release --clean --draft
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # PAT with 'repo' scope for pushing to the Homebrew tap and Scoop
-          # bucket repos. Falls back to GITHUB_TOKEN so releases still succeed
-          # (brew/scoop steps will no-op/fail gracefully) if the secret is unset.
-          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+          # Fine-grained PAT with Contents RW on homebrew-tap and scoop-bucket.
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+          MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
+          MACOS_SIGN_PASSWORD: ${{ secrets.MACOS_SIGN_PASSWORD }}
+          MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+          MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
+
+      # Verify what was UPLOADED (downloaded back from the draft), not dist/.
+      - name: Verify the draft's assets against checksums.txt
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          rm -rf verify && mkdir verify && cd verify
+          gh release download "$TAG" --clobber
+          # --ignore-missing passes with ZERO files checked if names desync, so
+          # count: every line of checksums.txt must verify.
+          checked=$(sha256sum --check --ignore-missing checksums.txt | grep -c ': OK$' || true)
+          expected=$(grep -c . checksums.txt)
+          [ "$checked" -eq "$expected" ] || { echo "::error::verified $checked/$expected checksums"; exit 1; }
+          echo "verified $checked/$expected checksums"
+
+  notarization:
+    needs: goreleaser
+    runs-on: macos-latest   # codesign, spctl and the quarantine bit are macOS-only
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify darwin binaries are signed, notarized, and run quarantined
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          QUARANTINE_PROBE: '1'
+          PROBE_ARGS: --version   # prints the version; no side effects
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          mkdir -p nc && cd nc
+          for arch in arm64 amd64; do   # each binary is signed separately
+            asset="inkcap_${version}_darwin_${arch}.tar.gz"
+            gh release download "$TAG" --pattern "$asset" --clobber
+            rm -f inkcap && tar xzf "$asset" inkcap
+            bash ../scripts/ci/check-macos-notarization.sh ./inkcap
+          done
+
+  publish:
+    needs: notarization
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          # No checkout in this job: without GH_REPO, gh fails with "not a git
+          # repository" and the verified release stays a draft.
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh release edit "$TAG" --draft=false --verify-tag
+          gh release view "$TAG" --json isDraft -q .isDraft | grep -qx false

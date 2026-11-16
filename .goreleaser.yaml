@@ -100,6 +100,25 @@ docker_manifests:
       - "ghcr.io/scttfrdmn/inkcap:{{ .Version }}-amd64"
       - "ghcr.io/scttfrdmn/inkcap:{{ .Version }}-arm64"
 
+# Developer ID signing + notarization of the darwin binaries, on ubuntu via
+# quill. Gated on the secret so forks and --snapshot builds still work; because
+# of that gate, release.yml fails explicitly when any MACOS_* secret is missing,
+# or goreleaser would silently skip signing and still succeed.
+notarize:
+  macos:
+    - enabled: '{{ isEnvSet "MACOS_SIGN_P12" }}'
+      ids:
+        - inkcap
+      sign:
+        certificate: '{{ .Env.MACOS_SIGN_P12 }}'   # base64 .p12 (Developer ID Application + key)
+        password: '{{ .Env.MACOS_SIGN_PASSWORD }}'
+      notarize:
+        issuer_id: '{{ .Env.MACOS_NOTARY_ISSUER_ID }}'
+        key_id: '{{ .Env.MACOS_NOTARY_KEY_ID }}'
+        key: '{{ .Env.MACOS_NOTARY_KEY }}'         # base64 .p8 (App Store Connect API key)
+        wait: true    # don't ship while Apple's verdict is pending
+        timeout: 20m  # goreleaser's ceiling
+
 homebrew_casks:
   - name: inkcap
     repository:
@@ -110,14 +129,11 @@ homebrew_casks:
     description: Markdown to typeset PDF in one static binary.
     license: Apache-2.0
     directory: Casks
-    # The downloaded binary is unsigned; clear the quarantine flag so macOS
-    # doesn't block it on first run.
-    hooks:
-      post:
-        install_steps: |
-          on_macos do
-            run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}/inkcap"]
-          end
+    binaries:
+      - inkcap
+    skip_upload: auto # prerelease tags don't move the tap
+    # No quarantine-stripping hook: the darwin binaries are Developer ID signed
+    # and notarized (notarize: below), so Gatekeeper lets them run as downloaded.
 
 scoops:
   - name: inkcap

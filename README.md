@@ -61,7 +61,8 @@ go build -o inkcap ./cmd/inkcap
 ```
 
 Prebuilt binaries, `.deb`/`.rpm` packages, and checksums are on the
-[Releases page](https://github.com/scttfrdmn/inkcap/releases).
+[Releases page](https://github.com/scttfrdmn/inkcap/releases). The macOS binaries
+are Developer ID signed and notarized, so Gatekeeper runs them as downloaded.
 
 ## Configuration
 
