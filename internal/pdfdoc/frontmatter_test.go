@@ -2,9 +2,32 @@ package pdfdoc
 
 import (
 	"bytes"
+	"slices"
 	"strings"
 	"testing"
 )
+
+func TestResourcesFindsLocalImages(t *testing.T) {
+	got, err := Resources([]byte("---\ntitle: Demo\nlogo: cover.svg\n---\n\n![alt](images/pic.png)\n\n<img src='diagram.jpg'>\n\n![remote](https://example.com/a.png)\n"), "docs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"docs/cover.svg", "docs/diagram.jpg", "docs/images/pic.png"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("Resources() = %#v, want %#v", got, want)
+	}
+}
+
+func TestResourcesPreservesAbsoluteImagePaths(t *testing.T) {
+	got, err := Resources([]byte("![absolute](/assets/figure.png)\n"), "docs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"/assets/figure.png"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("Resources() = %#v, want %#v", got, want)
+	}
+}
 
 func TestFrontMatterParsed(t *testing.T) {
 	cases := []struct {

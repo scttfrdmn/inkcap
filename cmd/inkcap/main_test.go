@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -77,6 +78,37 @@ func TestUsageErrors(t *testing.T) {
 		if code, _, _ := cli(t, "", args...); code != 2 {
 			t.Errorf("%s: exit %d, want 2", name, code)
 		}
+	}
+}
+
+func TestWatchRequiresFiles(t *testing.T) {
+	if code, _, errOut := cli(t, "# Piped", "-watch", "-"); code != 1 || !strings.Contains(errOut, "requires a file input and file output") {
+		t.Fatalf("exit %d, stderr %q", code, errOut)
+	}
+}
+
+func TestWithoutWatchRemovesBooleanTrueSpellings(t *testing.T) {
+	for _, value := range []string{"1", "t", "T", "TRUE", "True", "true"} {
+		got := withoutWatch([]string{"-watch=" + value, "doc.md"})
+		if !slices.Equal(got, []string{"doc.md"}) {
+			t.Errorf("withoutWatch(-watch=%s) = %#v", value, got)
+		}
+	}
+}
+
+func TestFileSnapshotDetectsChangesAndMissingFiles(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "asset.png")
+	before := fileSnapshot([]string{p})
+	if err := os.WriteFile(p, []byte("asset"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	after := fileSnapshot([]string{p})
+	if snapshotsEqual(before, after) {
+		t.Fatal("snapshot did not detect file creation")
+	}
+	if !snapshotsEqual(after, fileSnapshot([]string{p})) {
+		t.Fatal("unchanged file has different snapshot")
 	}
 }
 

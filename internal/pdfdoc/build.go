@@ -129,6 +129,60 @@ func Parse(src []byte, baseDir string, t *Theme) (*Doc, error) {
 	}, nil
 }
 
+// Resources returns local files that can affect rendering of src. Paths are
+// relative to baseDir; remote image URLs are intentionally omitted.
+func Resources(src []byte, baseDir string) ([]string, error) {
+	meta, body, err := splitFrontMatter(src)
+	if err != nil {
+		return nil, err
+	}
+	md := goldmark.New(goldmark.WithExtensions(extension.GFM, extension.Footnote, extension.DefinitionList), goldmark.WithParserOptions(parser.WithAttribute()))
+	root := md.Parser().Parse(text.NewReader(body))
+	seen := map[string]bool{}
+	add := func(raw string) {
+		raw = strings.TrimSpace(raw)
+		if raw == "" || strings.HasPrefix(raw, "#") || strings.HasPrefix(raw, "//") {
+			return
+		}
+		u, err := url.Parse(raw)
+		if err != nil || u.IsAbs() {
+			return
+		}
+		p := filepath.FromSlash(u.Path)
+		if !filepath.IsAbs(p) {
+			p = filepath.Join(baseDir, p)
+		}
+		p = filepath.Clean(p)
+		seen[p] = true
+	}
+	if meta.Logo != "" {
+		add(meta.Logo)
+	}
+	for _, im := range parseImgs(string(body)) {
+		add(im.src)
+	}
+	_ = ast.Walk(root, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+		switch v := n.(type) {
+		case *ast.Image:
+			add(string(v.Destination))
+		case *ast.RawHTML:
+			for _, im := range parseImgs(stripComments(rawHTML(v.Segments, body))) {
+				add(im.src)
+			}
+		}
+		return ast.WalkContinue, nil
+	})
+	out := make([]string, 0, len(seen))
+	for p := range seen {
+		out = append(out, p)
+	}
+	slices.Sort(out)
+	return out, nil
+}
+
 // ---------------------------------------------------------------------------
 // inline
 // ---------------------------------------------------------------------------
